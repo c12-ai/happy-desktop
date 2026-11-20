@@ -38,6 +38,7 @@ export interface HappyAgentProviderAddDialogProps {
      * - `done`: added; `done` says what.
      */
     readonly phase: "idle" | "busy" | "waiting" | "done";
+    readonly progress?: string;
     readonly signIn?: {
         readonly url: string;
         readonly userCode?: string;
@@ -303,7 +304,7 @@ export function HappyAgentProviderAddDialog(props: HappyAgentProviderAddDialogPr
         props.onBack();
     };
     const close = (): void => {
-        if (!busy) props.onClose();
+        if (!busy || props.progress !== undefined) props.onClose();
     };
     const flow = props.flow;
     const done = props.phase === "done";
@@ -360,7 +361,11 @@ export function HappyAgentProviderAddDialog(props: HappyAgentProviderAddDialogPr
                             </Button>
                         )}
                         {done ? null : (
-                            <Button disabled={busy} onClick={close} variant="ghost">
+                            <Button
+                                disabled={busy && props.progress === undefined}
+                                onClick={close}
+                                variant="ghost"
+                            >
                                 Cancel
                             </Button>
                         )}
@@ -376,7 +381,7 @@ export function HappyAgentProviderAddDialog(props: HappyAgentProviderAddDialogPr
                     </>
                 }
                 icon="spark"
-                onClose={busy ? undefined : close}
+                onClose={busy && props.progress === undefined ? undefined : close}
                 size="medium"
                 title={family ? family.name : titleOf(flow)}
             >
@@ -677,6 +682,11 @@ export function HappyAgentProviderAddDialog(props: HappyAgentProviderAddDialogPr
                                         <span>Waiting for you to finish…</span>
                                     </Box>
                                 </>
+                            ) : props.phase === "busy" && props.progress ? (
+                                <Box className="happy-agent-provider-add__waiting" role="status">
+                                    <Spinner size={16} />
+                                    <span>{props.progress}</span>
+                                </Box>
                             ) : (
                                 <span className="happy-agent-provider-add__text">
                                     Sign in with your ChatGPT account. Happy shows a code to enter

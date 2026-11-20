@@ -43,6 +43,7 @@ export interface HappyAgentCloudProviderAdd {
      * - `done`: added; `done` says what.
      */
     readonly phase: "idle" | "busy" | "waiting" | "done";
+    readonly progress?: string;
     readonly signIn?: {
         readonly url: string;
         /** The code to enter on the vendor's device page. */
@@ -213,7 +214,7 @@ export function happyAgentCloudProvidersStoreCreate(
     };
     /** The add dialog without what the last attempt left behind. */
     const addFresh = (add: HappyAgentCloudProviderAdd): HappyAgentCloudProviderAdd => {
-        const { error: _error, signIn: _signIn, done: _done, ...rest } = add;
+        const { error: _error, signIn: _signIn, done: _done, progress: _progress, ...rest } = add;
         return { ...rest, phase: "idle" };
     };
 
@@ -402,6 +403,7 @@ export function happyAgentCloudProvidersStoreCreate(
         addSet({
             ...add,
             phase: authorization ? "waiting" : "busy",
+            progress: operation.message,
             ...(authorization
                 ? {
                       signIn: {

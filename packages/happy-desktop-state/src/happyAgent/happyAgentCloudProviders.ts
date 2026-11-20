@@ -83,6 +83,7 @@ export type HappyAgentCloudSignInCli = "codex" | "claude";
 export interface HappyAgentCloudSignIn {
     readonly id: string;
     readonly status: "running" | "waiting" | "succeeded" | "failed" | "cancelled";
+    readonly message?: string;
     readonly authorization: {
         readonly url: string;
         /** The code to enter on the vendor's device page. */
@@ -238,6 +239,7 @@ function signInRead(value: unknown): HappyAgentCloudSignIn | null {
     return {
         id: operation.id,
         status: operation.status as HappyAgentCloudSignIn["status"],
+        ...(typeof operation.message === "string" ? { message: operation.message } : {}),
         authorization:
             authorization && typeof authorization.url === "string"
                 ? {
