@@ -18,6 +18,7 @@ import type {
     HappyAgentProvidersSnapshot,
     HappyAgentProvidersStore,
     HappyAgentCloudConnection,
+    HappyAgentCloudProviderAddFlow,
     HappyAgentCloudProvidersSnapshot,
     HappyAgentProviderEntry,
     HappyAgentProviderUsageEntry,
@@ -107,6 +108,7 @@ import {
     HappyAgentProviderSettings,
     HappyAgentCredentialImport,
     HappyAgentAiProviders,
+    HappyAgentProviderAddDialog,
     type HappyAgentAiProviderConnectionRow,
     type HappyAgentProviderAddDialogProps,
     type HappyAgentProviderEditDialogProps,
@@ -1475,7 +1477,8 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
                 />
             ) : section === "providers" ? (
                 <>
-                    {cloudProvidersStore && cloudProvidersOffered(cloudProviders) ? (
+                    {cloudProvidersStore &&
+                    cloudProvidersOffered(cloudProviders, providers.providers) ? (
                         <HappyAgentAiProviders
                             connections={cloudProviders.connections.map(cloudConnectionRow)}
                             loading={cloudProviders.loading}
@@ -1519,6 +1522,14 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
                             onCredentialRemove={(connectionId, credentialId) =>
                                 cloudProvidersStore.credentialRemove(connectionId, credentialId)
                             }
+                        />
+                    ) : cloudProvidersStore && cloudProviders.add ? (
+                        <HappyAgentProviderAddDialog
+                            {...providerAddProps(
+                                cloudProviders,
+                                cloudProvidersStore,
+                                props.externalLinkOpen,
+                            )}
                         />
                     ) : null}
                     {credentialImportStore ? (
@@ -1584,9 +1595,38 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
                             selection,
                             cloudProvidersStore !== undefined,
                             usage.providers,
+                            cloudProviders,
                         )}
+                        {...(cloudProvidersStore && cloudProviders.teamAllowed
+                            ? {
+                                  onAccountSignIn: (providerId: string) => {
+                                      const flow = providerAccountSignInFlow(
+                                          providers.providers.find(
+                                              (provider) => provider.id === providerId,
+                                          ),
+                                      );
+                                      if (flow && happyAgentOnline())
+                                          cloudProvidersStore.addOpen({ flow, to: "team" });
+                                  },
+                                  onAccountSignOut: (providerId: string) => {
+                                      const credential = cloudProviders.connections.find(
+                                          (connection) => connection.id === providerId,
+                                      )?.credentials?.[0];
+                                      if (credential && happyAgentOnline())
+                                          cloudProvidersStore.credentialRemove(
+                                              providerId,
+                                              credential.id,
+                                          );
+                                  },
+                              }
+                            : {})}
                         {...(providers.error ? { error: providers.error.message } : {})}
-                        {...(providers.saveError ? { saveError: providers.saveError.message } : {})}
+                        {...((providers.saveError ?? cloudProviders.saveError)
+                            ? {
+                                  saveError: (providers.saveError ?? cloudProviders.saveError)!
+                                      .message,
+                              }
+                            : {})}
                         {...(unavailable === undefined ? {} : { unavailable })}
                         readOnly={providersReadOnly(cloudProvidersStore, cloudProviders)}
                     />
@@ -2226,25 +2266,76 @@ function providerRows(
     selection: { readonly providerId: string; readonly modelId: string } | undefined,
     aiProviders: boolean,
     accounts: readonly HappyAgentProviderUsageEntry[],
+    cloud: HappyAgentCloudProvidersSnapshot,
 ): readonly HappyAgentProviderRow[] {
     return providers.map((entry) => {
         const provider: HappyAgentProviderEntry =
             aiProviders && !entry.custom
                 ? (({ credentials: _credentials, ...rest }) => rest)(entry)
                 : entry;
-        const signedOut =
-            accounts.find((account) => account.providerId === entry.id)?.signIn === "signed_out";
-        return providerRow(provider, settings, selection, signedOut);
+        // The server's own list of the account behind this provider says more
+        // than the daemon's last check of it, and is what the buttons act on.
+        const connection = cloud.connections.find((candidate) => candidate.id === entry.id);
+        const signedOut = connection
+            ? !connection.enabled
+            : accounts.find((account) => account.providerId === entry.id)?.signIn === "signed_out";
+        const row = providerRow(provider, settings, selection, signedOut);
+        if (!connection) return row;
+        const signInUnavailable = providerAccountSignInUnavailable(entry, cloud);
+        const credential = connection.credentials?.[0];
+        return {
+            ...row,
+            account: {
+                signedIn: connection.enabled,
+                ...(signInUnavailable === undefined ? {} : { signInUnavailable }),
+                ...(credential && cloud.credentialsSaving.has(credential.id)
+                    ? { saving: true }
+                    : {}),
+            },
+        };
     });
 }
 
 /**
- * The section that adds accounts is drawn only where the server has the
- * service behind it. A server without one fails the first read, and a section
- * whose every action would fail the same way is not offered.
+ * The section that lists and adds accounts is drawn only where the server has
+ * the service behind it, and has something of its own to list there. A server
+ * without the service fails the first read. A server whose accounts are all
+ * the machine's own providers has them on those providers' cards instead.
  */
-function cloudProvidersOffered(snapshot: HappyAgentCloudProvidersSnapshot): boolean {
-    return !snapshot.loading && snapshot.error === undefined;
+function cloudProvidersOffered(
+    snapshot: HappyAgentCloudProvidersSnapshot,
+    providers: readonly HappyAgentProviderEntry[],
+): boolean {
+    return (
+        !snapshot.loading &&
+        snapshot.error === undefined &&
+        snapshot.connections.some(
+            (connection) => !providers.some((provider) => provider.id === connection.id),
+        )
+    );
+}
+
+/** The dialog step that signs in the account behind one of the machine's own providers. */
+function providerAccountSignInFlow(
+    provider: HappyAgentProviderEntry | undefined,
+): HappyAgentCloudProviderAddFlow | undefined {
+    if (provider?.type === "codex") return { kind: "chatgpt" };
+    if (provider?.type === "claude") return { kind: "claude", setupToken: true };
+    return undefined;
+}
+
+/** Why the account behind a provider cannot be signed in from here, where it cannot. */
+function providerAccountSignInUnavailable(
+    provider: HappyAgentProviderEntry,
+    cloud: HappyAgentCloudProvidersSnapshot,
+): string | undefined {
+    if (provider.type === "codex")
+        return cloud.signIns.has("codex")
+            ? undefined
+            : "OpenAI’s sign-in program is not installed on this server, so ChatGPT cannot be signed in here yet.";
+    if (provider.type === "claude")
+        return cloud.setupToken ? undefined : "This server does not take a Claude token.";
+    return "This server does not sign this provider in.";
 }
 
 /**

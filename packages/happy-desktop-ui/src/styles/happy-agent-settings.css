@@ -296,6 +296,18 @@
     gap: 12px;
 }
 
+.happy-agent-provider__account {
+    position: relative;
+    display: flex;
+}
+
+.happy-agent-provider__account-confirm {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: var(--happy-z-overlay);
+}
+
 .happy-agent-provider__identity {
     display: flex;
     align-items: center;
