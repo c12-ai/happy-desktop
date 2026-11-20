@@ -3378,9 +3378,10 @@ function happyAgentEmptyDescription(happyAgent: AppHappyAgentEntry): string {
  * set one up there.
  */
 function happyAgentProjectsEmptyDescription(happyAgent: AppHappyAgentEntry): string {
-    if (happyAgent.serverUrl === undefined) return "Choose a repository folder on this Mac.";
+    if (happyAgent.serverUrl === undefined && happyAgent.happyCloud !== true)
+        return "Choose a repository folder on this Mac.";
     const chief = happyAgent.bots.find((bot) => bot.systemKey === "chief_of_staff");
-    return `Add a repository folder on this server, or ask ${chief?.name ?? "Chief of Staff"} to set one up.`;
+    return `Clone a GitHub repository onto this server, or ask ${chief?.name ?? "Chief of Staff"} to set one up.`;
 }
 
 /**
