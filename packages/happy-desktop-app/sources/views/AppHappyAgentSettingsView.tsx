@@ -1588,6 +1588,7 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
                         {...(providers.error ? { error: providers.error.message } : {})}
                         {...(providers.saveError ? { saveError: providers.saveError.message } : {})}
                         {...(unavailable === undefined ? {} : { unavailable })}
+                        readOnly={providersReadOnly(cloudProvidersStore, cloudProviders)}
                     />
                     <AppCustomProviderDialog snapshot={providers} store={providersStore} />
                 </>
@@ -2244,6 +2245,17 @@ function providerRows(
  */
 function cloudProvidersOffered(snapshot: HappyAgentCloudProvidersSnapshot): boolean {
     return !snapshot.loading && snapshot.error === undefined;
+}
+
+/**
+ * A reader the server says may not manage providers sees them and changes
+ * nothing. Where the server does not say, its routes decide, as before.
+ */
+function providersReadOnly(
+    store: HappyAgentCloudProvidersStore | undefined,
+    snapshot: HappyAgentCloudProvidersSnapshot,
+): boolean {
+    return store !== undefined && snapshot.permissionsKnown && !snapshot.teamAllowed;
 }
 
 /**
