@@ -20,6 +20,7 @@ import type {
     HappyAgentCloudConnection,
     HappyAgentCloudProvidersSnapshot,
     HappyAgentProviderEntry,
+    HappyAgentProviderUsageEntry,
     HappyAgentSettingsSnapshot,
     HappyAgentSettingsStore,
     HappyAgentTaskSettingsSnapshot,
@@ -869,9 +870,12 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
     // and the clock ticks the time left until each reset, only while that
     // category is the one on screen.
     const usageOpen = section === "usage";
+    // Providers follows the same store without asking for fresh spending: it is
+    // where the daemon says whether each account is signed in.
     const usageStore =
-        (usageOpen || stateOpen ? host?.session?.providerUsage : undefined) ??
-        happyAgentProviderUsageStoreNoop;
+        (usageOpen || section === "providers" || stateOpen
+            ? host?.session?.providerUsage
+            : undefined) ?? happyAgentProviderUsageStoreNoop;
     const usage = useSyncExternalStore(
         usageOpen ? usageOpenSubscribe(usageStore) : usageStore.subscribe,
         usageStore.get,
@@ -1471,7 +1475,7 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
                 />
             ) : section === "providers" ? (
                 <>
-                    {cloudProvidersStore ? (
+                    {cloudProvidersStore && cloudProvidersOffered(cloudProviders) ? (
                         <HappyAgentAiProviders
                             connections={cloudProviders.connections.map(cloudConnectionRow)}
                             loading={cloudProviders.loading}
@@ -1579,6 +1583,7 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
                             settings,
                             selection,
                             cloudProvidersStore !== undefined,
+                            usage.providers,
                         )}
                         {...(providers.error ? { error: providers.error.message } : {})}
                         {...(providers.saveError ? { saveError: providers.saveError.message } : {})}
@@ -2219,20 +2224,38 @@ function providerRows(
     settings: HappyAgentSettingsSnapshot,
     selection: { readonly providerId: string; readonly modelId: string } | undefined,
     aiProviders: boolean,
+    accounts: readonly HappyAgentProviderUsageEntry[],
 ): readonly HappyAgentProviderRow[] {
     return providers.map((entry) => {
         const provider: HappyAgentProviderEntry =
             aiProviders && !entry.custom
                 ? (({ credentials: _credentials, ...rest }) => rest)(entry)
                 : entry;
-        return providerRow(provider, settings, selection);
+        const signedOut =
+            accounts.find((account) => account.providerId === entry.id)?.signIn === "signed_out";
+        return providerRow(provider, settings, selection, signedOut);
     });
 }
 
+/**
+ * The section that adds accounts is drawn only where the server has the
+ * service behind it. A server without one fails the first read, and a section
+ * whose every action would fail the same way is not offered.
+ */
+function cloudProvidersOffered(snapshot: HappyAgentCloudProvidersSnapshot): boolean {
+    return !snapshot.loading && snapshot.error === undefined;
+}
+
+/**
+ * `signedOut` is the daemon's own word that the account behind a provider is
+ * not signed in. A provider that is switched on and lists models is still not
+ * usable then, so it reads "Not signed in" rather than "Connected".
+ */
 function providerRow(
     provider: HappyAgentProviderEntry,
     settings: HappyAgentSettingsSnapshot,
     selection: { readonly providerId: string; readonly modelId: string } | undefined,
+    signedOut: boolean,
 ): HappyAgentProviderRow {
     return {
         enabled: provider.enabled,
@@ -2258,7 +2281,7 @@ function providerRow(
                 ),
             ),
         ],
-        status: provider.disabledReason ?? "ready",
+        status: provider.disabledReason ?? (signedOut ? "not_authenticated" : "ready"),
         ...(provider.custom ? { custom: { protocol: provider.custom.protocol } } : {}),
         ...(provider.credentials
             ? {
