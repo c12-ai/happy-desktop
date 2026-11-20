@@ -90,6 +90,8 @@ export type HappyAgentProviderSettingsProps = {
     saveError?: string;
     /** Why model enablement cannot currently be changed. */
     unavailable?: string;
+    /** The reader may look and not change: every control is disabled, and the section says so. */
+    readOnly?: boolean;
     onModelEnabledChange: (id: string, enabled: boolean) => void;
     /** Switches one whole provider on or off for the machine. */
     onProviderEnabledChange: (id: string, enabled: boolean) => void;
@@ -151,6 +153,7 @@ export function HappyAgentProviderSettings(props: HappyAgentProviderSettingsProp
                 title="No providers"
             />
         );
+    const locked = props.unavailable !== undefined || props.readOnly === true;
     return (
         <>
             {props.unavailable ? (
@@ -164,7 +167,11 @@ export function HappyAgentProviderSettings(props: HappyAgentProviderSettingsProp
                 </Banner>
             ) : null}
             <HappyAgentSettingsSection
-                description="Off for a provider stops every agent here using it. Off for a model only hides it from this window’s pickers."
+                description={
+                    props.readOnly
+                        ? "What agents here run on. Only an owner can change it."
+                        : "Off for a provider stops every agent here using it. Off for a model only hides it from this window’s pickers."
+                }
                 title="Model providers"
             >
                 {props.providers.map((provider) => (
@@ -202,7 +209,7 @@ export function HappyAgentProviderSettings(props: HappyAgentProviderSettingsProp
                             {provider.custom && props.onCustomProviderEdit ? (
                                 <Button
                                     aria-label={`Edit ${provider.name}`}
-                                    disabled={props.unavailable !== undefined}
+                                    disabled={locked}
                                     icon="edit"
                                     onClick={() => props.onCustomProviderEdit?.(provider.id)}
                                     size="small"
@@ -212,7 +219,7 @@ export function HappyAgentProviderSettings(props: HappyAgentProviderSettingsProp
                             <Switch
                                 aria-label={`${provider.typeName ? `${provider.typeName} · ` : ""}${provider.name} enabled`}
                                 checked={provider.enabled}
-                                disabled={props.unavailable !== undefined || provider.saving}
+                                disabled={locked || provider.saving}
                                 onChange={(enabled) =>
                                     props.onProviderEnabledChange(provider.id, enabled)
                                 }
@@ -250,9 +257,7 @@ export function HappyAgentProviderSettings(props: HappyAgentProviderSettingsProp
                                         aria-label={`${model.name} enabled`}
                                         checked={model.enabled}
                                         disabled={
-                                            props.unavailable !== undefined ||
-                                            model.isDefault ||
-                                            provider.status !== "ready"
+                                            locked || model.isDefault || provider.status !== "ready"
                                         }
                                         onChange={(enabled) =>
                                             props.onModelEnabledChange(model.id, enabled)
@@ -274,7 +279,7 @@ export function HappyAgentProviderSettings(props: HappyAgentProviderSettingsProp
                                 keys={provider.keys}
                                 providerId={provider.id}
                                 providerName={provider.name}
-                                unavailable={props.unavailable !== undefined}
+                                unavailable={locked}
                                 {...(props.onKeyAdd ? { onKeyAdd: props.onKeyAdd } : {})}
                                 {...(props.onKeyEnabledChange
                                     ? { onKeyEnabledChange: props.onKeyEnabledChange }
@@ -295,7 +300,7 @@ export function HappyAgentProviderSettings(props: HappyAgentProviderSettingsProp
                 {props.onCustomProviderCreate ? (
                     <Box className="happy-agent-provider__add">
                         <Button
-                            disabled={props.unavailable !== undefined}
+                            disabled={locked}
                             icon="plus"
                             onClick={props.onCustomProviderCreate}
                             size="small"
