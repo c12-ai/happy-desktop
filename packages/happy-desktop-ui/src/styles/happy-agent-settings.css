@@ -1818,6 +1818,14 @@
     opacity: 1;
 }
 
+.happy-agent-settings__document-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    color: var(--text-secondary);
+}
+
 .happy-agent-compute__command-text {
     box-sizing: border-box;
     display: block;

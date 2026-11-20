@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Banner } from "../../Banner";
 import { Box } from "../../Box";
+import { Button } from "../../Button";
 import { FileEditor } from "../../FileEditor";
 import { MarkdownDocument } from "../../MarkdownDocument";
 import { Spinner } from "../../Spinner";
@@ -84,6 +85,26 @@ export function HappyAgentInstructionsSettings(props: HappyAgentInstructionsSett
                 </Box>
             ) : (
                 <Box className="happy-agent-settings__editor">
+                    {active.readOnly ? null : (
+                        <Box className="happy-agent-settings__document-actions">
+                            <span role="status">
+                                {active.saving
+                                    ? "Saving…"
+                                    : active.dirty
+                                      ? "Unsaved changes"
+                                      : "Saved"}
+                            </span>
+                            <Button
+                                disabled={!active.dirty || active.saving || active.saveDisabled}
+                                loading={active.saving}
+                                onClick={active.onSave}
+                                size="small"
+                                variant="primary"
+                            >
+                                Save changes
+                            </Button>
+                        </Box>
+                    )}
                     <FileEditor
                         banner={
                             active.saveError ? (

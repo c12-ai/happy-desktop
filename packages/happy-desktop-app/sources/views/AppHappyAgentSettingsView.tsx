@@ -1605,8 +1605,11 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
                                               (provider) => provider.id === providerId,
                                           ),
                                       );
-                                      if (flow && happyAgentOnline())
+                                      if (flow && happyAgentOnline()) {
                                           cloudProvidersStore.addOpen({ flow, to: "team" });
+                                          if (flow.kind === "chatgpt")
+                                              cloudProvidersStore.signInStart();
+                                      }
                                   },
                                   onAccountSignOut: (providerId: string) => {
                                       const credential = cloudProviders.connections.find(
@@ -2527,6 +2530,7 @@ export function providerAddProps(
             : ["openai", "anthropic", "grok"],
         teamOnly: happyAgentCloudProviderAddTeamOnly(add.flow),
         phase: add.phase,
+        ...(add.progress === undefined ? {} : { progress: add.progress }),
         ...(add.signIn ? { signIn: add.signIn } : {}),
         ...(add.done === undefined ? {} : { done: add.done }),
         ...(add.error ? { error: add.error } : {}),
