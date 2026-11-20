@@ -273,6 +273,7 @@
  */
 .happy-agent-settings__editor {
     display: flex;
+    flex-direction: column;
     height: 520px;
     overflow: hidden;
     border: 1px solid var(--divider);
@@ -1820,9 +1821,13 @@
 
 .happy-agent-settings__document-actions {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--divider);
+    background-color: var(--surface);
     color: var(--text-secondary);
 }
 
