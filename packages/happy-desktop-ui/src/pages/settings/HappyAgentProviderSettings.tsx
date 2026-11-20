@@ -3,6 +3,7 @@ import type { BadgeVariant } from "../../Badge";
 import { Banner } from "../../Banner";
 import { Box } from "../../Box";
 import { Button } from "../../Button";
+import { ConfirmPopover } from "../../ConfirmPopover";
 import { TextField } from "../../TextField";
 import { EmptyState } from "../../EmptyState";
 import { Icon } from "../../Icon";
@@ -63,6 +64,15 @@ export interface HappyAgentProviderKeyInput {
     readonly apiKey: string;
 }
 
+/** The subscription behind a provider, where this server signs it in and out from here. */
+export interface HappyAgentProviderAccount {
+    readonly signedIn: boolean;
+    /** Why a sign-in cannot be started from here, where it cannot. */
+    readonly signInUnavailable?: string;
+    /** A sign-out asked for and not answered yet. */
+    readonly saving?: boolean;
+}
+
 export interface HappyAgentProviderRow {
     readonly id: string;
     /** Service identity shown separately from the account's friendly name. */
@@ -80,6 +90,8 @@ export interface HappyAgentProviderRow {
     readonly keys?: HappyAgentProviderKeys;
     /** A provider the team added itself, with the protocol it speaks. */
     readonly custom?: { readonly protocol: HappyAgentCustomProviderProtocolId };
+    /** The account behind the provider, where the server lists one. */
+    readonly account?: HappyAgentProviderAccount;
 }
 
 export type HappyAgentProviderSettingsProps = {
@@ -99,6 +111,10 @@ export type HappyAgentProviderSettingsProps = {
     onKeyAdd?: (providerId: string, input: HappyAgentProviderKeyInput) => Promise<void>;
     onKeyEnabledChange?: (providerId: string, keyId: string, enabled: boolean) => void;
     onKeyRemove?: (providerId: string, keyId: string) => void;
+    /** Opens the sign-in of a provider's account; absent when the reader may not. */
+    onAccountSignIn?: (providerId: string) => void;
+    /** Signs a provider's account out; absent when the reader may not. */
+    onAccountSignOut?: (providerId: string) => void;
     /** Opens the dialog that adds a provider of the team's own; absent when the reader may not. */
     onCustomProviderCreate?: () => void;
     /** Opens one of the team's own providers for editing; absent when the reader may not. */
@@ -205,7 +221,22 @@ export function HappyAgentProviderSettings(props: HappyAgentProviderSettingsProp
                                 label={STATUS_LABELS[provider.status]}
                                 variant={STATUS_VARIANTS[provider.status]}
                             />
-                            {provider.saving ? <Spinner size={16} /> : null}
+                            {provider.saving || provider.account?.saving ? (
+                                <Spinner size={16} />
+                            ) : null}
+                            {provider.account ? (
+                                <HappyAgentProviderAccountAction
+                                    account={provider.account}
+                                    disabled={locked}
+                                    name={provider.typeName ?? provider.name}
+                                    {...(props.onAccountSignIn
+                                        ? { onSignIn: () => props.onAccountSignIn?.(provider.id) }
+                                        : {})}
+                                    {...(props.onAccountSignOut
+                                        ? { onSignOut: () => props.onAccountSignOut?.(provider.id) }
+                                        : {})}
+                                />
+                            ) : null}
                             {provider.custom && props.onCustomProviderEdit ? (
                                 <Button
                                     aria-label={`Edit ${provider.name}`}
@@ -330,7 +361,67 @@ function providerHint(provider: HappyAgentProviderRow): string | undefined {
     if (provider.keys?.addable && provider.keys.source === null)
         return "Add a team API key to use its models.";
     if (provider.keys) return undefined;
+    // A Sign in button that cannot be pressed says why, whatever else the card says.
+    if (provider.account && !provider.account.signedIn && provider.account.signInUnavailable)
+        return provider.account.signInUnavailable;
+    if (provider.account && provider.status === "not_authenticated")
+        return "Sign in to use its models.";
     return STATUS_HINTS[provider.status];
+}
+
+/**
+ * Sign in, or sign out, for the account behind one provider. Signing out is
+ * asked once more in place, because the server restarts its agents for it.
+ */
+function HappyAgentProviderAccountAction(props: {
+    readonly account: HappyAgentProviderAccount;
+    readonly name: string;
+    readonly disabled: boolean;
+    onSignIn?: () => void;
+    onSignOut?: () => void;
+}) {
+    const [confirming, setConfirming] = useState(false);
+    if (!props.account.signedIn)
+        return props.onSignIn ? (
+            <Button
+                data-action="sign-in"
+                disabled={props.disabled || props.account.signInUnavailable !== undefined}
+                onClick={props.onSignIn}
+                size="small"
+                variant="secondary"
+            >
+                Sign in
+            </Button>
+        ) : null;
+    if (!props.onSignOut) return null;
+    return (
+        <Box className="happy-agent-provider__account">
+            <Button
+                data-action="sign-out"
+                disabled={props.disabled || props.account.saving === true}
+                onClick={() => setConfirming(!confirming)}
+                size="small"
+                variant="ghost"
+            >
+                Sign out
+            </Button>
+            {confirming ? (
+                <Box className="happy-agent-provider__account-confirm">
+                    <ConfirmPopover
+                        confirmLabel="Sign out"
+                        message="The agent server restarts. Replies that are running are interrupted."
+                        onCancel={() => setConfirming(false)}
+                        onConfirm={() => {
+                            setConfirming(false);
+                            props.onSignOut?.();
+                        }}
+                        title={`Sign ${props.name} out?`}
+                        tone="danger"
+                    />
+                </Box>
+            ) : null}
+        </Box>
+    );
 }
 
 const KEY_STATE_LABELS: Record<HappyAgentProviderKeyState, string> = {
