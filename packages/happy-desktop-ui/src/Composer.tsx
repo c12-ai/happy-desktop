@@ -643,6 +643,13 @@ export function Composer(props: ComposerProps) {
     const historyHeld = useRef(false);
     /* Whether the edit now raising `input` was recorded by its `beforeinput`. */
     const historyRecorded = useRef(false);
+    /*
+     * Set while an input method (Pinyin, Kana, …) composes. Its keys work the
+     * candidate list, not the composer. WebKit sends `compositionend` before
+     * the Enter that committed it, so the flag clears one task later and that
+     * Enter is still the input method's.
+     */
+    const composing = useRef(false);
     const historyOf = () => {
         if (historyDraftId.current !== props.draftId) {
             history.reset();
@@ -1061,6 +1068,9 @@ export function Composer(props: ComposerProps) {
         });
     };
     const onKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+        // 229 is the legacy keyCode some engines report for a key the input
+        // method is processing, before `isComposing` is set.
+        if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) return;
         const historyDirection = historyChordOf(event.nativeEvent);
         if (historyDirection) {
             // Prevented here, the browser runs neither its own Undo nor the
@@ -1362,6 +1372,14 @@ export function Composer(props: ComposerProps) {
                 props.onFocusChange?.(false);
             }}
             onClick={rememberSelection}
+            onCompositionEnd={() => {
+                setTimeout(() => {
+                    composing.current = false;
+                }, 0);
+            }}
+            onCompositionStart={() => {
+                composing.current = true;
+            }}
             onFocus={() => props.onFocusChange?.(true)}
             onInput={onInput}
             onKeyDown={onKeyDown}
