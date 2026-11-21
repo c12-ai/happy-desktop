@@ -9793,6 +9793,21 @@ function HappyAgentFilePreview(props: {
 }
 
 /**
+ * What the reader has sent in a conversation, oldest first, for Up and Down in
+ * its composer: their own messages with words, as far back as the transcript
+ * has been read. A message of attachments alone has nothing to bring back.
+ */
+function sentHistoryOf(entries: readonly ConversationEntry[], viewerId: string): string[] {
+    return entries.flatMap((entry) =>
+        entry.kind === "message" &&
+        entry.message.sender?.id === viewerId &&
+        entry.message.text.trim() !== ""
+            ? [entry.message.text]
+            : [],
+    );
+}
+
+/**
  * A conversation's dock, reading its composer's draft itself.
  *
  * This is the one subscription a keystroke reaches. The surface around it reads
@@ -10673,6 +10688,7 @@ function HappyAgentConversationSurface(props: {
                             : []),
                     ]}
                     composerFocusOnType={!composerDisabled && props.focusOnType}
+                    composerSentHistory={sentHistoryOf(conversation.entries, props.viewerId)}
                     // The open conversation is what this composer writes into, so moving
                     // to another one — or landing in the one a new workspace was made
                     // with — puts the caret in the draft. A locked chat has no draft to
