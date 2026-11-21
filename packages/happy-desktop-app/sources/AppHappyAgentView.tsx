@@ -736,6 +736,9 @@ export interface AppHappyAgentSession {
     readonly providers?: HappyAgentProvidersStore;
     /** Settings › Members, on a Happy Cloud server; absent or undefined elsewhere. */
     readonly members?: () => import("happy-desktop-state").HappyAgentMembersStore | undefined;
+    readonly gatewayMembers?: () =>
+        | import("happy-desktop-state").HappyGatewayMembersStore
+        | undefined;
     /** One member's profile, on Happy Cloud; absent or undefined elsewhere. */
     readonly userProfile?: (
         userId: string,

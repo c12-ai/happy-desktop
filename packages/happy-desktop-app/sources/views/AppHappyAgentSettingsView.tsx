@@ -75,6 +75,8 @@ import {
     type HappyAgentCloudProvidersStore,
     HAPPY_AGENT_INVITE_RESEND_COOLDOWN_MS,
     happyAgentMembersStoreNoop,
+    happyGatewayMembersStoreNoop,
+    type HappyGatewayMembersSnapshot,
     type HappyAgentInvite,
     type HappyAgentInviteNotice,
     type HappyAgentMembersSnapshot,
@@ -114,6 +116,7 @@ import {
     type HappyAgentProviderEditDialogProps,
     HappyAgentDangerSettings,
     HappyAgentMembersSettings,
+    HappyGatewayMembersSettings,
     type HappyAgentInviteNoticeView,
     type HappyAgentInviteRow,
     Banner,
@@ -653,6 +656,9 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
         (membersStore ?? happyAgentMembersStoreNoop).get,
     );
     const owner = members.roleId === "owner";
+    // A server behind Happy Gateway has members of the gateway's: read only
+    // while Members is on screen, and offered once the gateway has answered.
+    const gatewayMembersStore = host?.session?.gatewayMembers?.();
     const adminAbsent = !membersStore || (!members.loading && !owner);
     const section =
         happyAgentSettingsCategoryAvailable(props.section, happyCloud) &&
@@ -671,7 +677,9 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
         (category) =>
             happyAgentSettingsCategoryAvailable(category.id, happyCloud) &&
             (category.id !== "instructions" || instructionsShown) &&
-            (category.id !== "members" || membersStore !== undefined) &&
+            (category.id !== "members" ||
+                membersStore !== undefined ||
+                gatewayMembersStore !== undefined) &&
             (category.id !== "repositories" || repositoriesStore !== undefined) &&
             (category.id !== "compute" || computeStore !== undefined) &&
             (!ADMIN_CATEGORIES.has(category.id) || owner) &&
@@ -816,6 +824,13 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
     // The member list is read, and re-read every few seconds, while Settings
     // is open on a Happy Cloud server; the reader's role picks the Admin group.
     const membersShown = section === "members" ? membersStore : undefined;
+    const gatewayMembersShown =
+        section === "members" && !membersStore ? gatewayMembersStore : undefined;
+    const gatewayMembers = useSyncExternalStore(
+        (gatewayMembersShown ?? happyGatewayMembersStoreNoop).subscribe,
+        (gatewayMembersShown ?? happyGatewayMembersStoreNoop).get,
+        (gatewayMembersShown ?? happyGatewayMembersStoreNoop).get,
+    );
     // The repository list is read, and re-read every few seconds, only while
     // Repositories is on screen.
     const repositoriesShown = section === "repositories" ? repositoriesStore : undefined;
@@ -1729,7 +1744,40 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
                         roles={members.roles}
                         serverName={members.serverName}
                     />
-                ) : (
+                ) : gatewayMembersShown && gatewayMembers.access !== "absent" ? (
+                    <HappyGatewayMembersSettings
+                        {...(gatewayMembers.error ? { error: gatewayMembers.error.message } : {})}
+                        invitations={gatewayMembers.invitations.map((invitation) =>
+                            gatewayInvitationRow(gatewayMembers, invitation),
+                        )}
+                        inviting={gatewayMembers.inviting}
+                        loading={gatewayMembers.loading}
+                        manage={gatewayMembers.access === "owner"}
+                        {...(gatewayMembers.notice
+                            ? { notice: gatewayNoticeView(gatewayMembers.notice) }
+                            : {})}
+                        onInvitationWithdraw={(id) => gatewayMembersShown.invitationWithdraw(id)}
+                        onInvite={() => gatewayMembersShown.invitationCreate()}
+                        onNoticeDismiss={() => gatewayMembersShown.noticeDismiss()}
+                        onPasswordLink={(id) => gatewayMembersShown.passwordLinkCreate(id)}
+                        onRemove={(id) => gatewayMembersShown.personRemove(id)}
+                        onRestore={(id) => gatewayMembersShown.personRestore(id)}
+                        people={gatewayMembers.people.map((person) => ({
+                            id: person.id,
+                            name: person.name,
+                            ...(person.email === null ? {} : { email: person.email }),
+                            role: person.role,
+                            status: person.status,
+                            self: person.self,
+                            lastSignIn:
+                                person.lastSignInAt === null
+                                    ? "Never signed in"
+                                    : `Last signed in ${shortDate(person.lastSignInAt)}`,
+                            saving: person.saving,
+                            ...(person.refusal ? { refusal: person.refusal.message } : {}),
+                        }))}
+                    />
+                ) : gatewayMembersShown && gatewayMembers.loading ? null : (
                     <Banner tone="neutral" title="No members here">
                         Members belong to a Happy Cloud server. Open one to see who is on it.
                     </Banner>
@@ -2721,6 +2769,45 @@ function inviteResendWaiting(invite: HappyAgentInvite): boolean {
         invite.lastSentAt !== null &&
         Date.now() - invite.lastSentAt < HAPPY_AGENT_INVITE_RESEND_COOLDOWN_MS
     );
+}
+
+function shortDate(at: number): string {
+    return new Date(at).toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+    });
+}
+
+/** One open link of the gateway's, worded for its row. */
+function gatewayInvitationRow(
+    snapshot: HappyGatewayMembersSnapshot,
+    invitation: HappyGatewayMembersSnapshot["invitations"][number],
+) {
+    const person = snapshot.people.find((entry) => entry.id === invitation.personId);
+    return {
+        id: invitation.id,
+        label:
+            invitation.kind === "join"
+                ? "Invitation link"
+                : `Password link for ${person?.name ?? "someone"}`,
+        detail: `Made ${shortDate(invitation.createdAt)} · expires ${shortDate(invitation.expiresAt)}`,
+        saving: invitation.saving,
+    };
+}
+
+function gatewayNoticeView(notice: NonNullable<HappyGatewayMembersSnapshot["notice"]>) {
+    if (notice.type === "refused")
+        return { type: "refused" as const, message: notice.error.message };
+    return {
+        type: "link" as const,
+        title:
+            notice.kind === "join"
+                ? `Invitation link, for one person, until ${shortDate(notice.expiresAt)}.`
+                : `Password link for ${notice.personName ?? "them"}, until ${shortDate(notice.expiresAt)}. Their current password works until they use it.`,
+        link: notice.link,
+    };
 }
 
 function inviteRow(
