@@ -178,6 +178,10 @@ import {
     happyAgentMembersStoreCreate,
     type HappyAgentMembersStore,
 } from "./happyAgentMembersStore.js";
+import {
+    happyGatewayMembersStoreCreate,
+    type HappyGatewayMembersStore,
+} from "./happyGatewayMembersStore.js";
 import type { HappyCloudRequest } from "./happyAgentProviderCredentials.js";
 import {
     happyAgentUserProfileStoreCreate,
@@ -348,6 +352,12 @@ export interface HappyAgentWorkspaceClient {
      * invites. Undefined anywhere but a Happy Cloud server.
      */
     members(): HappyAgentMembersStore | undefined;
+    /**
+     * Settings › Members on a server behind Happy Gateway: who may use it and,
+     * for its owner, invitations and removals. Undefined where the connection
+     * has no route of its own to ask; its snapshot says when no gateway answers.
+     */
+    gatewayMembers(): HappyGatewayMembersStore | undefined;
     /**
      * One member's profile on Happy Cloud: who they are, what they used, and
      * their latest tasks. Materialized per member on first access and kept;
@@ -832,6 +842,7 @@ export function happyAgentWorkspaceClientCreate(
     let previewsStore: HappyAgentPreviewsStore | undefined;
     let dailyUsageStore: HappyAgentDailyUsageStore | undefined;
     let membersStore: HappyAgentMembersStore | undefined;
+    let gatewayMembersStore: HappyGatewayMembersStore | undefined;
     const userProfileStores = new Map<string, HappyAgentUserProfileStore>();
     const checkoutStores = new Map<string, HappyAgentCheckoutsStore>();
     let voiceSettingsStore: HappyAgentVoiceSettingsStore | undefined;
@@ -1398,6 +1409,14 @@ export function happyAgentWorkspaceClientCreate(
             });
             return membersStore;
         },
+        gatewayMembers() {
+            if (disposed) throw new Error("The Happy Agent client is disposed.");
+            // A Happy Cloud server has members of its own; a gateway sits only in front of a Happy Agent.
+            const request = deps.cloudServer ? undefined : deps.cloudRequest;
+            if (!request) return undefined;
+            gatewayMembersStore ??= happyGatewayMembersStoreCreate({ request });
+            return gatewayMembersStore;
+        },
         userProfile(userId) {
             if (disposed) throw new Error("The Happy Agent client is disposed.");
             const request = deps.cloudRequest;
@@ -1662,6 +1681,8 @@ export function happyAgentWorkspaceClientCreate(
             dailyUsageStore = undefined;
             membersStore?.[Symbol.dispose]();
             membersStore = undefined;
+            gatewayMembersStore?.[Symbol.dispose]();
+            gatewayMembersStore = undefined;
             for (const store of userProfileStores.values()) store[Symbol.dispose]();
             userProfileStores.clear();
             for (const store of checkoutStores.values()) store[Symbol.dispose]();

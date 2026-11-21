@@ -270,6 +270,7 @@ export * from "./pipelines/pipelineNodeLogStore.js";
 export * from "./happyAgent/happyAgentPreviewsStore.js";
 export * from "./happyAgent/happyAgentDailyUsageStore.js";
 export * from "./happyAgent/happyAgentMembersStore.js";
+export * from "./happyAgent/happyGatewayMembersStore.js";
 export * from "./happyAgent/happyAgentUserProfileStore.js";
 export * from "./happyAgent/happyAgentVoiceSettingsStore.js";
 export * from "./happyAgent/happyAgentSecurityPolicyStore.js";

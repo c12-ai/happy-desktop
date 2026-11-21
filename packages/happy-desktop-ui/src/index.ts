@@ -1131,6 +1131,13 @@ export {
     type HappyAgentMembersSettingsProps,
 } from "./pages/settings/HappyAgentMembersSettings";
 export {
+    HappyGatewayMembersSettings,
+    type HappyGatewayInvitationRow,
+    type HappyGatewayMembersNoticeView,
+    type HappyGatewayMembersSettingsProps,
+    type HappyGatewayPersonRow,
+} from "./pages/settings/HappyGatewayMembersSettings";
+export {
     HAPPY_AGENT_REPOSITORY_CREDENTIAL_NONE,
     HappyAgentRepositoriesSettings,
     HappyAgentRepositoryAddDialog,
