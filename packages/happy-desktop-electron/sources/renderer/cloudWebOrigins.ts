@@ -1,5 +1,7 @@
 /** The addresses outside its own origin that the cloud web app knows. */
 export interface CloudWebOrigins {
+    /** Gateway builds resolve both addresses from the current browser origin. */
+    readonly sameOrigin?: boolean;
     /** The accounts service's origin, the only place sign-out may send the page on to. */
     readonly accountsOrigin: string;
     /** Where a person signs out to and switches servers from. */
@@ -18,9 +20,16 @@ export const CLOUD_WEB_ORIGINS_PRODUCTION: CloudWebOrigins = {
  * Each must be https: the accounts origin a bare origin, the picker its root.
  */
 export function cloudWebOriginsRead(env: {
+    readonly HAPPY_CLOUD_WEB_SAME_ORIGIN?: string;
     readonly HAPPY_CLOUD_WEB_ACCOUNTS_ORIGIN?: string;
     readonly HAPPY_CLOUD_WEB_PICKER_URL?: string;
 }): CloudWebOrigins {
+    if (env.HAPPY_CLOUD_WEB_SAME_ORIGIN === "1")
+        return {
+            accountsOrigin: "https://localhost",
+            pickerUrl: "https://localhost/",
+            sameOrigin: true,
+        };
     const accountsOrigin =
         env.HAPPY_CLOUD_WEB_ACCOUNTS_ORIGIN || CLOUD_WEB_ORIGINS_PRODUCTION.accountsOrigin;
     const pickerUrl = env.HAPPY_CLOUD_WEB_PICKER_URL || CLOUD_WEB_ORIGINS_PRODUCTION.pickerUrl;
@@ -37,8 +46,22 @@ export function cloudWebOriginsRead(env: {
 
 declare const __HAPPY_CLOUD_WEB_ORIGINS__: CloudWebOrigins | undefined;
 
-/** This build's addresses. */
-export const cloudWebOrigins: CloudWebOrigins =
+/** Resolve a gateway build against the browser, allowing a distinct local port for every server. */
+export function cloudWebOriginsAt(build: CloudWebOrigins, origin: string): CloudWebOrigins {
+    if (!build.sameOrigin) return build;
+    const parsed = new URL(origin);
+    if (parsed.protocol !== "https:" || parsed.origin !== origin)
+        throw new Error("A gateway web build needs its own https origin");
+    return { accountsOrigin: origin, pickerUrl: `${origin}/`, sameOrigin: true };
+}
+
+const compiledOrigins =
     typeof __HAPPY_CLOUD_WEB_ORIGINS__ !== "undefined"
         ? __HAPPY_CLOUD_WEB_ORIGINS__
         : CLOUD_WEB_ORIGINS_PRODUCTION;
+
+/** This build's addresses, resolved at runtime for gateway deployments. */
+export const cloudWebOrigins: CloudWebOrigins = cloudWebOriginsAt(
+    compiledOrigins,
+    typeof window !== "undefined" ? window.location.origin : compiledOrigins.accountsOrigin,
+);
