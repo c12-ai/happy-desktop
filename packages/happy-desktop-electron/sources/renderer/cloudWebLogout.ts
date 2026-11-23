@@ -13,6 +13,7 @@ export async function cloudWebLogoutNext(
     response: Response | undefined,
     accountsOrigin: string,
 ): Promise<string> {
+    if (cloudWebOrigins.sameOrigin) return CLOUD_WEB_PICKER_URL;
     if (response?.status !== 200) return CLOUD_WEB_PICKER_URL;
     const body = (await response.json().catch(() => undefined)) as
         | { readonly next?: unknown }
