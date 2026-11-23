@@ -74,7 +74,8 @@ const FORBIDDEN = [
     "happybases",
     "happy-clusters",
     "api.github.com",
-    "githubusercontent",
+    "raw.githubusercontent.com",
+    "objects.githubusercontent.com",
     "electron-updater",
     "autoUpdater",
     "posthog",
@@ -170,6 +171,7 @@ async function bundle() {
         },
     });
     cpSync(join(here, "ui"), join(dist, "ui"), { recursive: true });
+    cpSync(join(here, "provision"), join(dist, "provision"), { recursive: true });
 }
 
 /** The mark on upstream's tile: the same canvas, tile size and corner radius as scripts/create-mac-icon.mjs. */
@@ -242,6 +244,7 @@ async function pack(arch, output, icons) {
     rmSync(staging, { recursive: true, force: true });
     mkdirSync(staging, { recursive: true });
     cpSync(dist, join(staging, "dist"), { recursive: true });
+    cpSync(join(workspace, "LICENSE"), join(staging, "LICENSE"));
     writeFileSync(
         join(staging, "package.json"),
         `${JSON.stringify({ ...packageJson, version }, null, 4)}\n`,
@@ -255,7 +258,7 @@ async function pack(arch, output, icons) {
         npmRebuild: false,
         nodeGypRebuild: false,
         asar: true,
-        files: ["dist/**/*", "package.json"],
+        files: ["dist/**/*", "package.json", "LICENSE"],
         electronFuses: FUSES,
         publish: null,
         directories: { output, buildResources: join(here, "assets") },
@@ -302,11 +305,12 @@ async function packagedVerify(resources, executable) {
         "dist/preload.cjs",
         "dist/ui/chooser.html",
         "package.json",
+        "LICENSE",
     ])
         if (!files.includes(required)) throw new Error(`${archive} has no ${required}.`);
     const unexpected = files.filter(
         (name) =>
-            !/^(dist(\/(main\.js|preload\.cjs|ui(\/chooser\.(html|css|js))?))?|package\.json)$/u.test(
+            !/^(dist(\/(main\.js|preload\.cjs|ui(\/chooser\.(html|css|js))?|provision(\/(manifest\.json|remote\.py|bootstrap\.sh|apt\.sh|upload\.sh))?))?|package\.json|LICENSE)$/u.test(
                 name,
             ),
     );

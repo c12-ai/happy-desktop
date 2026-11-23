@@ -69,9 +69,8 @@ export function serverLabel(origin: string): string {
 }
 
 /**
- * The gateway port the SSH form suggests: where the gateway listens on the
- * server's own loopback. The local port suggested is the same number, so one
- * origin (https://localhost:<port>) serves every computer.
+ * The advanced manual SSH form's suggested gateway/local port. The setup
+ * wizard allocates a distinct stable local port for each server instead.
  */
 export const DEFAULT_TUNNEL_PORT = 8443;
 
@@ -86,6 +85,8 @@ export interface SshTunnel {
     remotePort: number;
     localPort: number;
     fingerprint: string;
+    /** A validated legacy gateway may listen on its private network interface. */
+    remoteHost?: string;
 }
 
 export type SshResult = { ok: true; tunnel: SshTunnel } | { ok: false; message: string };
@@ -103,6 +104,7 @@ export function sshServerParse(fields: {
     remotePort: string;
     localPort: string;
     fingerprint: string;
+    remoteHost?: string;
 }): SshResult {
     const alias = fields.alias.trim();
     if (alias === "") return { ok: false, message: "Enter the SSH host, as in ~/.ssh/config." };
@@ -125,7 +127,39 @@ export function sshServerParse(fields: {
             message:
                 "Paste the certificate's SHA-256 fingerprint you were given: 32 pairs of hex digits.",
         };
-    return { ok: true, tunnel: { alias, remotePort, localPort, fingerprint } };
+    if (fields.remoteHost !== undefined && !validRemoteHost(fields.remoteHost))
+        return {
+            ok: false,
+            message: "The SSH gateway target must be loopback or a private IPv4 address.",
+        };
+    return {
+        ok: true,
+        tunnel: {
+            alias,
+            remotePort,
+            localPort,
+            fingerprint,
+            ...(fields.remoteHost && fields.remoteHost !== "127.0.0.1"
+                ? { remoteHost: fields.remoteHost }
+                : {}),
+        },
+    };
+}
+
+export function validRemoteHost(value: unknown): value is string {
+    if (
+        typeof value !== "string" ||
+        !/^(?:0|[1-9][0-9]{0,2})(?:\.(?:0|[1-9][0-9]{0,2})){3}$/u.test(value)
+    )
+        return false;
+    const octets = value.split(".").map(Number);
+    if (octets.some((octet) => octet > 255)) return false;
+    return (
+        value === "127.0.0.1" ||
+        octets[0] === 10 ||
+        (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+        (octets[0] === 192 && octets[1] === 168)
+    );
 }
 
 /** A port as typed: digits only, no sign, no leading zero, no spaces. */
@@ -175,8 +209,9 @@ export function entryLabel(entry: ServerEntry): string {
  */
 export function entryPartition(entry: ServerEntry): string {
     if (entry.ssh === undefined) return serverPartition(entry.origin);
-    const { alias, remotePort, localPort, fingerprint } = entry.ssh;
-    return `persist:server-${createHash("sha256").update(`ssh:${alias}:${remotePort}:${localPort}:${fingerprint}`).digest("hex").slice(0, 32)}`;
+    const { alias, remotePort, localPort, fingerprint, remoteHost } = entry.ssh;
+    const target = remoteHost && remoteHost !== "127.0.0.1" ? `:${remoteHost}` : "";
+    return `persist:server-${createHash("sha256").update(`ssh:${alias}:${remotePort}:${localPort}:${fingerprint}${target}`).digest("hex").slice(0, 32)}`;
 }
 
 /**
@@ -323,6 +358,7 @@ function sshEntryRead(value: unknown): SshTunnel | null {
         remotePort: String(raw.remotePort),
         localPort: String(raw.localPort),
         fingerprint: raw.fingerprint,
+        ...(raw.remoteHost !== undefined ? { remoteHost: raw.remoteHost as string } : {}),
     });
     return parsed.ok &&
         parsed.tunnel.alias === raw.alias &&

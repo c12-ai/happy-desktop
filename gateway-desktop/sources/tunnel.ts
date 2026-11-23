@@ -1,8 +1,8 @@
 /**
  * The SSH tunnel to a gateway on another computer's loopback: the system's own
  * /usr/bin/ssh, with the person's own ~/.ssh/config, keys, agent and
- * known_hosts, and a fixed argument list. The app never reads, copies or
- * writes anything under ~/.ssh and never accepts a host key: a host ssh does
+ * known_hosts, and a fixed argument list. Credentials stay with system SSH;
+ * the chooser reads profile names from config only. The app never accepts a host key: a host ssh does
  * not already know, or a key that needs a passphrase no agent holds, is an
  * error that says to try `ssh <host>` in Terminal.
  *
@@ -30,7 +30,11 @@ const BACKOFF_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000];
 const STABLE_MS = 60_000;
 
 /** Starts one of the two allowed programs; every process this app starts goes through here. */
-function launch(program: string, args: readonly string[], options: SpawnOptions): ChildProcess {
+export function launch(
+    program: string,
+    args: readonly string[],
+    options: SpawnOptions,
+): ChildProcess {
     if (!PROGRAMS.has(program)) throw new Error(`Karis Workbench does not start ${program}.`);
     return spawn(program, args, { ...options, shell: false });
 }
@@ -91,10 +95,11 @@ export function sshArguments(tunnel: SshTunnel, version: readonly [number, numbe
         remotePort: String(tunnel.remotePort),
         localPort: String(tunnel.localPort),
         fingerprint: tunnel.fingerprint,
+        remoteHost: tunnel.remoteHost,
     });
     if (!checked.ok || checked.tunnel.alias !== tunnel.alias)
         throw new Error("Refusing an SSH tunnel the server list would not accept.");
-    const { alias, remotePort, localPort } = checked.tunnel;
+    const { alias, remotePort, localPort, remoteHost } = checked.tunnel;
     return [
         "-N",
         "-T",
@@ -107,7 +112,7 @@ export function sshArguments(tunnel: SshTunnel, version: readonly [number, numbe
                 : []),
         ].flatMap((option) => ["-o", option]),
         "-L",
-        `127.0.0.1:${localPort}:127.0.0.1:${remotePort}`,
+        `127.0.0.1:${localPort}:${remoteHost ?? "127.0.0.1"}:${remotePort}`,
         "--",
         alias,
     ];

@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "release": "2026.11.23.1",
+  "publication": "pending_user_approval",
+  "payload": {
+    "file": "happy-gateway-linux-x64-2026.11.23.1.tar.xz",
+    "url": "https://github.com/c12-ai/karis-workbench-releases/releases/download/2026.11.23.1/happy-gateway-linux-x64-2026.11.23.1.tar.xz",
+    "sha256": "fc4f7cbfe4da90e8bd7eb1fdd4f762fcb1d4e4147f0393a59d9acc7d305a0718",
+    "bytes": 387128112
+  },
+  "helper": "remote.py",
+  "bootstrap": "bootstrap.sh",
+  "apt": "apt.sh",
+  "upload": "upload.sh",
+  "supported": { "id": "debian", "version": "13", "arch": "x86_64" },
+  "remote": { "webPort": 47443, "gatewayPort": 47442, "happyPort": 13410 },
+  "happyVersion": "2026.11.8",
+  "nodeVersion": "24.22.3",
+  "codexVersion": "0.170.0",
+  "codexSha256": "880819aab735adcf16f36cd628940b9f1e652a36c01d10a5d32f83cc84902971",
+  "compatibleGatewaySha256": ["0c2a7eb24cb31c909bdcb8ed581e5b509946c3cab809662d5583cfd7d6a078d0", "7dad5bff1932e4e314e7eb6fc4231dbe7caf942de347249f90acee297bf6e553"],
+  "password": { "minimum": 10, "maximum": 200 }
+}

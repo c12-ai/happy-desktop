@@ -3,12 +3,13 @@
  * interface that server already serves. Sign-in is the gateway's own page and
  * cookie, kept in a cookie store of that server's own.
  *
- * The app adds nothing a browser tab would not have: no local agent, no
- * updater, no analytics, no bridge into the page. A server window may load
+ * The local chooser can provision a gateway through a narrow SSH API. A server
+ * page has no native bridge, local agent, updater or analytics. Its window may load
  * only its own origin; every other address goes to the default browser.
  * Certificates are checked by the system, with one exception only: a server
  * reached through an SSH tunnel (https://localhost:<port>) is trusted by the
- * fingerprint the person pasted when adding it, in that server's own cookie
+ * fingerprint received through authenticated SSH or entered in the manual form,
+ * in that server's own cookie
  * store, and by nothing else.
  */
 import { randomUUID } from "node:crypto";
@@ -47,6 +48,9 @@ import {
     type SshTunnel,
 } from "./servers";
 import { Tunnel, TunnelError, TunnelRegistry } from "./tunnel";
+import { sshProfiles } from "./ssh-profiles";
+import { loadProvisionBundle, type ProvisionBundle } from "./provision-assets";
+import { ProvisionController } from "./provision-controller";
 
 /**
  * Switches that would let the app accept a certificate the system does not
@@ -118,6 +122,32 @@ const refusedCertificates = new Map<string, string>();
 const opening = new Set<string>();
 let chooserWindow: BrowserWindow | null = null;
 let quitting = false;
+let provision: ProvisionController | undefined;
+let provisionBundle: Promise<ProvisionBundle> | undefined;
+
+function setupController(): ProvisionController {
+    provision ??= new ProvisionController(
+        () =>
+            (provisionBundle ??= loadProvisionBundle(
+                join(fileURLToPath(new URL(".", import.meta.url)), "provision"),
+                join(app.getPath("userData"), "provision-cache"),
+            ).catch((error: unknown) => {
+                provisionBundle = undefined;
+                throw error;
+            })),
+        () => store.list(),
+        (event) => {
+            if (!quitting && chooserWindow && !chooserWindow.isDestroyed())
+                chooserWindow.webContents.send("setup:event", event);
+        },
+        (tunnel, signal) => {
+            if (!chooserWindow || chooserWindow.isDestroyed() || quitting)
+                return Promise.resolve({ ok: false, message: "Setup was cancelled." });
+            return sshServerAdd(tunnel, chooserWindow.webContents, signal);
+        },
+    );
+    return provision;
+}
 
 function entryOf(origin: string): ServerEntry {
     return store.get(origin) ?? { origin };
@@ -530,7 +560,10 @@ function openChooser(): void {
         },
     });
     chooserWindow.once("ready-to-show", () => chooserWindow?.show());
-    chooserWindow.on("closed", () => (chooserWindow = null));
+    chooserWindow.on("closed", () => {
+        provision?.cancelAll();
+        chooserWindow = null;
+    });
     void chooserWindow.loadURL(`${APP_ORIGIN}/chooser.html`);
 }
 
@@ -561,14 +594,16 @@ function serversListed() {
 /**
  * Adds a tunnelled server: brings its tunnel up, reads the certificate the
  * gateway presents at the end of it without trusting it, compares that
- * certificate's fingerprint with the one the person pasted, and asks the
+ * certificate's fingerprint with the expected one, and asks the
  * gateway whether it is one only once they match. Nothing is added otherwise.
  */
 async function sshServerAdd(
     tunnel: SshTunnel,
     owner: WebContents,
+    signal?: AbortSignal,
 ): Promise<AddressResult & { fingerprint?: string }> {
     if (quitting) return { ok: false, message: "The app is quitting." };
+    if (signal?.aborted) return { ok: false, message: "Adding this server was cancelled." };
     const origin = tunnelOrigin(tunnel);
     const taken = store.byLocalPort(tunnel.localPort);
     if (taken !== undefined)
@@ -584,6 +619,7 @@ async function sshServerAdd(
         void trial.stop();
     };
     owner.once("destroyed", cancel);
+    signal?.addEventListener("abort", cancel, { once: true });
     trialAborters.set(trial, controller);
     activeTunnels.add(trial);
     try {
@@ -602,7 +638,7 @@ async function sshServerAdd(
             );
         if (presented !== tunnel.fingerprint)
             return refuse(
-                `The server presented a different certificate from the fingerprint you pasted, so ${label} was not added.\n\nPasted: ${tunnel.fingerprint}\nPresented: ${presented}`,
+                `The server presented a different certificate from the expected fingerprint, so ${label} was not added.\n\nExpected: ${tunnel.fingerprint}\nPresented: ${presented}`,
             );
         const checker = tunnelProbeSession(origin);
         pinnedTrust(checker, (fingerprint) => fingerprint === tunnel.fingerprint);
@@ -636,6 +672,7 @@ async function sshServerAdd(
         return { ok: false, message: error instanceof Error ? error.message : String(error) };
     } finally {
         owner.removeListener("destroyed", cancel);
+        signal?.removeEventListener("abort", cancel);
         trialAborters.delete(trial);
         if (tunnels.get(origin) !== trial) {
             await trial.stop();
@@ -748,6 +785,27 @@ function probeRequest(target: Session, url: string, signal?: AbortSignal): Promi
 }
 
 function registerIpc(): void {
+    ipcMain.handle("setup:profiles", (event) => (fromChooser(event) ? sshProfiles() : []));
+    ipcMain.handle("setup:create", (event, alias: unknown) =>
+        fromChooser(event) && !quitting ? setupController().create(alias) : null,
+    );
+    ipcMain.handle("setup:run", (event, id: unknown, op: unknown, owner: unknown) =>
+        fromChooser(event) && !quitting ? setupController().run(id, op, owner) : null,
+    );
+    ipcMain.handle("setup:connect", (event, id: unknown) =>
+        fromChooser(event) && !quitting
+            ? setupController().connect(id)
+            : { ok: false, message: "Not allowed." },
+    );
+    ipcMain.handle("setup:legacyPort", (event, id: unknown) =>
+        fromChooser(event) && !quitting ? setupController().useLegacyPort(id) : null,
+    );
+    ipcMain.handle("setup:cancel", (event, id: unknown) =>
+        fromChooser(event) ? provision?.cancel(id) === true : false,
+    );
+    ipcMain.handle("setup:sudo", (event, id: unknown, password: unknown) =>
+        fromChooser(event) && !quitting ? provision?.password(id, password) === true : false,
+    );
     ipcMain.handle("servers:list", (event) => (fromChooser(event) ? serversListed() : null));
     ipcMain.handle("servers:add", async (event, text: unknown) => {
         if (!fromChooser(event) || typeof text !== "string")
@@ -910,22 +968,28 @@ app.on("before-quit", () => {
     // Quitting again once the tunnels are stopped finds the windows already closed.
     if (quitting) return;
     quitting = true;
+    provision?.cancelAll();
     for (const controller of trialAborters.values()) controller.abort();
     store?.openSet([...serverWindows.keys()]);
 });
 let tunnelsStopped = false;
 // No ssh outlives the app: each is stopped before it quits, and killed if the process ends any other way.
 app.on("will-quit", (event) => {
-    if (tunnelsStopped || activeTunnels.size === 0) return;
+    if (tunnelsStopped || (activeTunnels.size === 0 && !provision?.active)) return;
     event.preventDefault();
-    const stopping = Promise.allSettled([...activeTunnels].map((tunnel) => tunnel.stop()));
-    void Promise.race([stopping, new Promise((resolve) => setTimeout(resolve, 3_000))]).then(() => {
+    const stopping = Promise.allSettled(
+        [...activeTunnels]
+            .map((tunnel) => tunnel.stop())
+            .concat(provision ? [provision.stop()] : []),
+    );
+    void Promise.race([stopping, new Promise((resolve) => setTimeout(resolve, 6_000))]).then(() => {
         tunnelsStopped = true;
         // Not from within this event: Electron counts the app as quitting until it has returned.
         setImmediate(() => app.quit());
     });
 });
 process.on("exit", () => {
+    provision?.killNow();
     for (const tunnel of activeTunnels) tunnel.killNow();
 });
 app.on("window-all-closed", () => {

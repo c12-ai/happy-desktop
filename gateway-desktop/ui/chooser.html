@@ -43,57 +43,138 @@
                 </p>
                 <p id="message" role="alert"></p>
             </form>
-            <form id="add-ssh" autocomplete="off" hidden>
-                <label for="ssh-alias">SSH host</label>
-                <input
-                    id="ssh-alias"
-                    name="alias"
-                    type="text"
-                    spellcheck="false"
-                    placeholder="nitro"
-                    required
-                />
-                <p class="hint">
-                    A host from ~/.ssh/config that <code>ssh</code> reaches in Terminal.
-                </p>
-                <div class="ports">
-                    <div>
-                        <label for="ssh-remote-port">Gateway port there</label>
+            <section id="ssh-panel" hidden>
+                <form id="setup-host" autocomplete="off">
+                    <label for="setup-alias">SSH profile</label>
+                    <div class="row">
                         <input
-                            id="ssh-remote-port"
-                            name="remotePort"
+                            id="setup-alias"
+                            list="ssh-profiles"
                             type="text"
-                            inputmode="numeric"
+                            spellcheck="false"
+                            placeholder="nitro"
                             required
                         />
+                        <datalist id="ssh-profiles"></datalist>
+                        <button id="setup-inspect" type="submit">Inspect</button>
                     </div>
-                    <div>
-                        <label for="ssh-local-port">Port on this computer</label>
+                    <p class="hint">
+                        Choose a profile from ~/.ssh/config, or enter an included profile by name.
+                        Workbench uses your Mac’s SSH keys and agent.
+                    </p>
+                </form>
+                <section id="setup-state" hidden aria-live="polite">
+                    <p id="setup-status"></p>
+                    <progress id="setup-progress" hidden></progress>
+                    <p id="setup-summary" class="hint"></p>
+                    <p id="setup-error" role="alert"></p>
+                    <div class="row">
+                        <button id="setup-install" type="button" class="primary" hidden>
+                            Install Gateway and Happy
+                        </button>
+                        <button id="setup-prepare" type="button" class="primary" hidden>
+                            Enable connection
+                        </button>
+                        <button id="setup-prerequisite" type="button" class="primary" hidden>
+                            Install prerequisite and inspect
+                        </button>
+                        <button id="setup-connect" type="button" class="primary" hidden>
+                            Connect
+                        </button>
+                        <button id="setup-retry" type="button" hidden>Retry inspection</button>
+                        <button id="setup-cancel" type="button">Cancel</button>
+                    </div>
+                </section>
+                <form id="setup-sudo" autocomplete="off" hidden>
+                    <label for="sudo-password">Administrator password on this server</label>
+                    <input
+                        id="sudo-password"
+                        type="password"
+                        autocomplete="off"
+                        maxlength="1024"
+                        required
+                    />
+                    <p class="hint">Sent through SSH for this operation only.</p>
+                    <button type="submit">Continue</button>
+                </form>
+                <form id="setup-owner" autocomplete="off" hidden>
+                    <p id="owner-instruction">Set the gateway administrator’s password.</p>
+                    <label for="owner-password">Password</label>
+                    <input
+                        id="owner-password"
+                        type="password"
+                        autocomplete="new-password"
+                        minlength="10"
+                        maxlength="200"
+                        required
+                    />
+                    <label for="owner-confirm">Confirm password</label>
+                    <input
+                        id="owner-confirm"
+                        type="password"
+                        autocomplete="new-password"
+                        minlength="10"
+                        maxlength="200"
+                        required
+                    />
+                    <button type="submit">Set gateway password</button>
+                    <p class="hint">You’ll sign in on the gateway after setup.</p>
+                </form>
+                <details id="ssh-manual">
+                    <summary>Connect to a gateway manually</summary>
+                    <form id="add-ssh" autocomplete="off">
+                        <label for="ssh-alias">SSH host</label>
                         <input
-                            id="ssh-local-port"
-                            name="localPort"
+                            id="ssh-alias"
+                            name="alias"
                             type="text"
-                            inputmode="numeric"
+                            spellcheck="false"
+                            placeholder="nitro"
                             required
                         />
-                    </div>
-                </div>
-                <label for="ssh-fingerprint">Certificate fingerprint (SHA-256)</label>
-                <textarea
-                    id="ssh-fingerprint"
-                    name="fingerprint"
-                    rows="3"
-                    spellcheck="false"
-                    placeholder="AB:CD:…"
-                    required
-                ></textarea>
-                <p class="hint">
-                    Paste the fingerprint your administrator gave you. The server is added only if
-                    the certificate it presents has exactly this fingerprint.
-                </p>
-                <button id="ssh-button" type="submit">Connect and Add</button>
-                <p id="ssh-message" role="alert"></p>
-            </form>
+                        <p class="hint">
+                            A host from ~/.ssh/config that <code>ssh</code> reaches in Terminal.
+                        </p>
+                        <div class="ports">
+                            <div>
+                                <label for="ssh-remote-port">Gateway port there</label>
+                                <input
+                                    id="ssh-remote-port"
+                                    name="remotePort"
+                                    type="text"
+                                    inputmode="numeric"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label for="ssh-local-port">Port on this computer</label>
+                                <input
+                                    id="ssh-local-port"
+                                    name="localPort"
+                                    type="text"
+                                    inputmode="numeric"
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <label for="ssh-fingerprint">Certificate fingerprint (SHA-256)</label>
+                        <textarea
+                            id="ssh-fingerprint"
+                            name="fingerprint"
+                            rows="3"
+                            spellcheck="false"
+                            placeholder="AB:CD:…"
+                            required
+                        ></textarea>
+                        <p class="hint">
+                            Paste the fingerprint your administrator gave you. The server is added
+                            only if the certificate it presents has exactly this fingerprint.
+                        </p>
+                        <button id="ssh-button" type="submit">Connect and Add</button>
+                        <p id="ssh-message" role="alert"></p>
+                    </form>
+                </details>
+            </section>
         </main>
     </body>
 </html>
