@@ -21,7 +21,9 @@ import {
     conversationFileChanges,
     conversationFileDiff,
     gptLiveStoreNoop,
+    happyAgentAssistantBot,
     happyAgentBotSubtasks,
+    happyAgentHiddenIds,
     happyExternalLinkFormat,
     happyShareLinkFormat,
     isHappyUrl,
@@ -3384,6 +3386,9 @@ function happyAgentProjectsEmptyDescription(happyAgent: AppHappyAgentEntry): str
     if (happyAgent.serverUrl === undefined && happyAgent.happyCloud !== true)
         return "Choose a repository folder on this Mac.";
     const chief = happyAgent.bots.find((bot) => bot.systemKey === "chief_of_staff");
+    // A member of a server behind Happy Gateway sees no Chief of Staff: setting one up is the Admin's.
+    if (chief === undefined && happyAgentHiddenIds().teamAssistantBotId !== null)
+        return "Clone a GitHub repository onto this server, or ask the Admin to set one up.";
     return `Clone a GitHub repository onto this server, or ask ${chief?.name ?? "Chief of Staff"} to set one up.`;
 }
 
@@ -9841,7 +9846,7 @@ function HappyAgentComposerDock(
  */
 /** The Chief of Staff bot's live name, for copy that names it, when this Happy Agent lists one. */
 function chiefOfStaffNameProps(bots: readonly HappyAgentBot[]): { chiefOfStaffName?: string } {
-    const chief = bots.find((bot) => bot.systemKey === "chief_of_staff");
+    const chief = happyAgentAssistantBot(bots);
     return chief ? { chiefOfStaffName: chief.name } : {};
 }
 
