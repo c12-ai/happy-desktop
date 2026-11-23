@@ -170,11 +170,25 @@ const errors = {
         "This server requires a terminal for sudo. Ask its administrator to permit this installer without a terminal.",
     sudo_required: "Administrator permission is required on this server.",
     sudo_failed: "Administrator authentication failed. Inspect the server to try again.",
-    ssh_auth: "SSH could not authenticate with your configured key or agent.",
+    ssh_auth:
+        "SSH could not authenticate with your configured key or agent. Check that this profile works in Terminal and that any protected key is available through your SSH agent or Keychain.",
     ssh_host_key:
-        "This server’s SSH host key is unknown or has changed. Verify it before connecting.",
+        "This server’s SSH host key is unknown or has changed. Verify it in Terminal before connecting again.",
     ssh_config: "SSH could not use this profile. Check its configuration.",
-    ssh_network: "The SSH connection failed. Check your connection and retry.",
+    ssh_network:
+        "The SSH connection failed. Check that the selected SSH profile works in Terminal, then retry.",
+    ssh_name:
+        "SSH could not resolve a server or proxy hostname. Check this profile’s HostName and ProxyJump settings in Terminal.",
+    ssh_command_missing:
+        "SSH could not start a command required by this profile. Check its ProxyCommand and make sure that command is available to Workbench.",
+    ssh_interactive:
+        "This SSH profile needs an interactive sign-in. Connect with it in Terminal to complete that sign-in, then retry in Workbench.",
+    remote_start_failed:
+        "SSH connected, but the setup helper did not start. Check that this profile permits remote commands and that the server’s shell and Python work.",
+    local_port_unavailable:
+        "Workbench could not reserve a local connection port. Retry; if this continues, restart Workbench.",
+    desktop_error:
+        "Workbench could not complete the setup request. Close and reopen Servers, then retry.",
     timeout: "The operation timed out. Inspect the server before retrying.",
     cancelled: "Setup cancelled.",
     protocol: "The server returned an unsupported setup response.",
@@ -308,29 +322,38 @@ async function setupRun(op, owner) {
         const view = await bridge.setupRun(setupId, op, owner);
         if (view?.id === setupId) setupShow(view);
     } catch {
-        setupShow({ code: "ssh_network" });
+        setupShow({ code: "desktop_error" });
     }
 }
-setup.host.addEventListener("submit", async (event) => {
-    event.preventDefault();
+async function setupInspect() {
     if (setupBusy) return;
-    if (setupId) await bridge.setupCancel(setupId);
+    const previous = setupId;
+    setupId = null;
     setupWorking(true);
     setup.state.hidden = false;
     setup.status.textContent = steps.preflight;
-    const view = await bridge.setupCreate(setup.alias.value.trim());
-    setupWorking(false);
-    if (!view?.ok) {
-        setupShow({ code: view?.code ?? "ssh_config" });
-        return;
+    try {
+        if (previous) await bridge.setupCancel(previous);
+        const view = await bridge.setupCreate(setup.alias.value.trim());
+        setupWorking(false);
+        if (!view?.ok) {
+            setupShow({ code: view?.code ?? "ssh_config" });
+            return;
+        }
+        setupId = view.id;
+        await setupRun("probe");
+    } catch {
+        setupShow({ code: "desktop_error" });
     }
-    setupId = view.id;
-    await setupRun("probe");
+}
+setup.host.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void setupInspect();
 });
 setup.install.addEventListener("click", () => setupRun("install"));
 setup.prepare.addEventListener("click", () => setupRun("prepare_connection"));
 setup.prerequisite.addEventListener("click", () => setupRun("inspect_existing"));
-setup.retry.addEventListener("click", () => setupRun("probe"));
+setup.retry.addEventListener("click", () => (setupId ? setupRun("probe") : setupInspect()));
 setup.cancel.addEventListener("click", async () => {
     const id = setupId;
     setupId = null;
@@ -365,18 +388,22 @@ setup.connect.addEventListener("click", async () => {
     if (!setupId || setupBusy) return;
     setupWorking(true);
     setup.status.textContent = "Connecting…";
-    const result = await bridge.setupConnect(setupId);
-    if (!result.ok) {
+    try {
+        const result = await bridge.setupConnect(setupId);
+        if (!result.ok) {
+            setupWorking(false);
+            setup.error.textContent = errors[result.message] ?? result.message;
+            setup.retry.hidden = false;
+            return;
+        }
+        await bridge.open(result.origin);
+        setupId = null;
         setupWorking(false);
-        setup.error.textContent = errors[result.message] ?? result.message;
-        setup.retry.hidden = false;
-        return;
+        setup.state.hidden = true;
+        await refresh();
+    } catch {
+        setupShow({ code: "desktop_error" });
     }
-    await bridge.open(result.origin);
-    setupId = null;
-    setupWorking(false);
-    setup.state.hidden = true;
-    await refresh();
 });
 bridge.onSetupEvent((event) => {
     if (event.id !== setupId) return;

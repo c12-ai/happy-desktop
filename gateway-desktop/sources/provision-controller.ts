@@ -70,7 +70,7 @@ export class ProvisionController {
             job.busy = false;
             return { ...this.#view(job), ok: true };
         } catch {
-            return { ok: false, code: "ssh_network" };
+            return { ok: false, code: "local_port_unavailable" };
         }
     }
     #track<T>(pending: Promise<T>): Promise<T> {

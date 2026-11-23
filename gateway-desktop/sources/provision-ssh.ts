@@ -76,14 +76,33 @@ export async function commandArguments(alias: string, command: string): Promise<
     return ["-T", ...options.flatMap((option) => ["-o", option]), "--", alias, command];
 }
 
-function stderrCode(stderr: string): ProvisionCode {
-    if (/must have a tty|terminal is required|requiretty/iu.test(stderr)) return "unsupported_sudo";
-    if (
-        /not in the sudoers|not allowed to (?:run|execute)|may not run sudo|sudo[^\n]*(?:not found|no such file)/iu.test(
-            stderr,
+/** Classify private stderr locally. Only a bounded code crosses the renderer bridge. */
+export function sshProvisionFailure(
+    stderr: string,
+    exitCode: number | null,
+    helperReady: boolean,
+): ProvisionCode {
+    // ssh returns the remote command's exit status; its own connection errors use 255.
+    // A local proxy's sudo/password failure must not trigger a remote sudo retry.
+    if (exitCode !== null && exitCode !== 255) {
+        if (/must have a tty|terminal is required|requiretty/iu.test(stderr))
+            return "unsupported_sudo";
+        if (
+            /not in the sudoers|not allowed to (?:run|execute)|may not run sudo|sudo[^\n]*(?:not found|no such file)/iu.test(
+                stderr,
+            )
         )
-    )
-        return "privilege_required";
+            return "privilege_required";
+        if (/a password is required|password is required/iu.test(stderr)) return "sudo_required";
+        if (
+            /incorrect password|sudo[^\n]*authentication failure|no password was provided|sorry, try again/iu.test(
+                stderr,
+            )
+        )
+            return "sudo_failed";
+        // A completed command with no handshake is not a failed SSH connection.
+        return helperReady ? "protocol" : "remote_start_failed";
+    }
     if (
         /host key verification failed|host identification has changed|no .*host key is known/iu.test(
             stderr,
@@ -91,7 +110,13 @@ function stderrCode(stderr: string): ProvisionCode {
     )
         return "ssh_host_key";
     if (
-        /permission denied|too many authentication failures|no more authentication methods/iu.test(
+        /password is required|cannot prompt[^\n]*non.interactive|(?:re-?authentication|interactive authentication)[^\n]*(?:required|needed)|(?:please run|run the following)[^\n]*(?:auth login|gcloud auth)/iu.test(
+            stderr,
+        )
+    )
+        return "ssh_interactive";
+    if (
+        /permission denied|too many authentication failures|no more authentication methods|agent refused operation|sign_and_send_pubkey[^\n]*signing failed|read_passphrase[^\n]*(?:can't open|cannot open)/iu.test(
             stderr,
         )
     )
@@ -102,13 +127,14 @@ function stderrCode(stderr: string): ProvisionCode {
         )
     )
         return "ssh_config";
-    if (/a password is required|password is required/iu.test(stderr)) return "sudo_required";
+    if (/could not resolve hostname|name or service not known|nodename nor servname/iu.test(stderr))
+        return "ssh_name";
     if (
-        /incorrect password|authentication failure|no password was provided|sorry, try again/iu.test(
+        /command not found|(?:^|\n)(?:\/[^:\n]+\/)?(?:ba|z|da|k)?sh:[^\n]*(?:not found|no such file)|exec[^\n]*no such file|posix_spawnp: no such file/iu.test(
             stderr,
         )
     )
-        return "sudo_failed";
+        return "ssh_command_missing";
     return "ssh_network";
 }
 
@@ -310,7 +336,9 @@ export class SshProvisionOperation {
                 if (failure) return reject(new ProvisionError(failure));
                 if (this.#cancelled) return reject(new ProvisionError("cancelled"));
                 if (code !== 0 || !completed || !readyPath)
-                    return reject(new ProvisionError(stderrCode(stderr)));
+                    return reject(
+                        new ProvisionError(sshProvisionFailure(stderr, code, Boolean(readyPath))),
+                    );
                 resolve(readyPath);
             });
         });
@@ -434,7 +462,8 @@ export class SshProvisionOperation {
                 }
                 if (failure) return reject(new ProvisionError(failure));
                 if (this.#cancelled) return reject(new ProvisionError("cancelled"));
-                if (code !== 0 || !result) return reject(new ProvisionError(stderrCode(stderr)));
+                if (code !== 0 || !result)
+                    return reject(new ProvisionError(sshProvisionFailure(stderr, code, ready)));
                 resolve(result);
             });
         });
