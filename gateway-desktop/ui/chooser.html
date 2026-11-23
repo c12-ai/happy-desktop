@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Servers</title>
+        <link rel="stylesheet" href="chooser.css" />
+        <script src="chooser.js" defer></script>
+    </head>
+    <body>
+        <main>
+            <h1>Karis Workbench</h1>
+            <p class="lead">
+                Choose the workbench server to open. You sign in with the same account as on the
+                web.
+            </p>
+            <section id="known" hidden>
+                <h2>Your servers</h2>
+                <ul id="servers"></ul>
+            </section>
+            <form id="add" autocomplete="off">
+                <h2 id="add-title">Add a server</h2>
+                <label for="address">Server address</label>
+                <div class="row">
+                    <input
+                        id="address"
+                        name="address"
+                        type="text"
+                        inputmode="url"
+                        spellcheck="false"
+                        placeholder="www.example.com"
+                        required
+                    />
+                    <button id="add-button" type="submit">Add and Open</button>
+                </div>
+                <p class="hint">
+                    https:// only. The address must have a certificate this computer trusts.
+                </p>
+                <p id="message" role="alert"></p>
+            </form>
+        </main>
+    </body>
+</html>
