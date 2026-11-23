@@ -1,4 +1,5 @@
 import type { SidebarReadAheadRows } from "../happyAgentConnection/types.js";
+import { happyAgentAssistantBot } from "./happyAgentHiddenIds.js";
 import { happyAgentPanelChatOpen, type HappyAgentPanelChatHandle } from "./happyAgentPanelChat.js";
 import type { HappyAgentDeviceBridgesStore } from "./happyAgentDeviceBridgesStore.js";
 import type { HappyAgentDeviceBridgeSupportStore } from "./happyAgentDeviceBridgeSupportStore.js";
@@ -3042,7 +3043,7 @@ export function happyAgentWorkspaceStoreCreate(
     const errorAssistanceProject = (
         chat: HappyAgentChatSnapshot,
     ): readonly ConversationErrorAssistanceEntry[] => {
-        const chief = list.get().bots.find((bot) => bot.systemKey === "chief_of_staff");
+        const chief = happyAgentAssistantBot(list.get().bots);
         const attempts = errorAssistanceAttempts.get(chat.sessionId);
         const offer = happyAgentErrorAssistanceOffer({
             sessionId: chat.sessionId,
@@ -7820,7 +7821,7 @@ export function happyAgentWorkspaceStoreCreate(
                 entry.variant !== "notice"
             )
                 return;
-            const chief = list.get().bots.find((bot) => bot.systemKey === "chief_of_staff");
+            const chief = happyAgentAssistantBot(list.get().bots);
             if (
                 !chief ||
                 chief.conversation.id === sourceSessionId ||
@@ -7873,7 +7874,7 @@ export function happyAgentWorkspaceStoreCreate(
             );
         },
         async chiefOfStaffDraftAppend(request) {
-            const chief = list.get().bots.find((bot) => bot.systemKey === "chief_of_staff");
+            const chief = happyAgentAssistantBot(list.get().bots);
             if (!chief) throw new UserError("Chief of Staff is not available on this Happy Agent.");
             const location = {
                 sessionId: chief.conversation.id as HappyAgentSessionId,
@@ -7893,7 +7894,7 @@ export function happyAgentWorkspaceStoreCreate(
             chiefOfStaffWait?.();
             chiefOfStaffWait = undefined;
             const open = (): boolean => {
-                const chief = list.get().bots.find((bot) => bot.systemKey === "chief_of_staff");
+                const chief = happyAgentAssistantBot(list.get().bots);
                 if (!chief || disposed) return false;
                 output({
                     type: "conversationOpenRequested",

@@ -14,6 +14,10 @@ import { happyAgentHealthCapability } from "../happyAgentConnection/happyAgentHe
 import type { HappyAgentSync } from "../happyAgentConnection/happyAgentSync.js";
 import { happyAgentSyncRead } from "../happyAgentConnection/happyAgentSyncRead.js";
 import { happyAgentUserError } from "../happyAgent/happyAgentSupport.js";
+import {
+    happyAgentHiddenClusterHas,
+    happyAgentHiddenHas,
+} from "../happyAgent/happyAgentHiddenIds.js";
 import type { UserError } from "../types.js";
 import {
     feedTodoKey,
@@ -101,6 +105,11 @@ function feedPeekEntryOf(entry: FeedEntry): HappyAgentFeedPeekEntry {
 
 function feedItemOf(item: FeedItem): HappyAgentFeedItem {
     return { ...feedPeekEntryOf(item), id: item.id, version: item.version, seenAt: item.seenAt };
+}
+
+/** Whether an entry is about, or gathered from, something the server hides from this reader. */
+function feedEntryHidden(entry: HappyAgentFeedPeekEntry): boolean {
+    return happyAgentHiddenHas(entry.subject.id) || happyAgentHiddenClusterHas(entry.cluster);
 }
 
 function feedPlaceOf(cluster: FeedCluster): HappyAgentFeedPlace {
@@ -532,9 +541,10 @@ export function happyAgentFeedCreate(deps: HappyAgentFeedDeps): HappyAgentFeed {
                 ? page
                 : { ...page, subjects: [...HAPPY_AGENT_FEED_HIGHLIGHT_SUBJECTS] };
         const shownOf = (filter: HappyAgentFeedFilter): readonly HappyAgentFeedItem[] =>
-            filter === "all"
+            (filter === "all"
                 ? held
-                : held.filter((item) => happyAgentFeedFilterHas(filter, item.subject));
+                : held.filter((item) => happyAgentFeedFilterHas(filter, item.subject))
+            ).filter((item) => !feedEntryHidden(item));
         /** Whether older pages are still to be read before a filtered list fills a screen. */
         const filling = (
             filter: HappyAgentFeedFilter,
@@ -1031,7 +1041,9 @@ export function happyAgentFeedCreate(deps: HappyAgentFeedDeps): HappyAgentFeed {
             client.peekFeedCluster(cluster, { limit: PEEK_LIMIT }, { signal }).then(
                 (response) => {
                     if (signal.aborted || snapshot.peek?.cluster !== cluster) return;
-                    peekHeld = response.entries.map(feedPeekEntryOf);
+                    peekHeld = response.entries
+                        .map(feedPeekEntryOf)
+                        .filter((entry) => !feedEntryHidden(entry));
                     peekAnswered = true;
                     referencesRequest(peekHeld);
                     publish({ peek: peekOf({ ...snapshot.peek, error: null }) });

@@ -183,6 +183,7 @@ import {
     type HappyGatewayMembersStore,
 } from "./happyGatewayMembersStore.js";
 import type { HappyCloudRequest } from "./happyAgentProviderCredentials.js";
+import { happyAgentHiddenPoll } from "./happyAgentHiddenIds.js";
 import {
     happyAgentUserProfileStoreCreate,
     type HappyAgentUserProfileStore,
@@ -799,6 +800,8 @@ export function happyAgentWorkspaceClientCreate(
             : {}),
     });
     const memory = happyAgentWorkspaceMemoryStoreCreate(deps.workspaceMemoryPersistence);
+    // What a server behind Happy Gateway keeps out of this reader's view (see happyAgentHiddenIds.ts).
+    const hiddenPollStop = deps.cloudRequest ? happyAgentHiddenPoll(deps.cloudRequest) : undefined;
     // Happy Cloud's own routes are present exactly on a Happy Cloud connection.
     const attachmentPlacement = happyAgentAttachmentPlacementCreate(
         deps.hostServices,
@@ -1634,6 +1637,7 @@ export function happyAgentWorkspaceClientCreate(
         [Symbol.dispose]() {
             if (disposed) return;
             disposed = true;
+            hiddenPollStop?.();
             models[Symbol.dispose]();
             sessionListStore?.[Symbol.dispose]();
             sessionListStore = undefined;

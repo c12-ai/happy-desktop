@@ -293,6 +293,7 @@ export * from "./happyAgent/happyAgentSurfaceSettingsStore.js";
 export * from "./happyAgent/happyAgentSidebarTree.js";
 export * from "./happyAgent/happyAgentSidebarVisibilityStore.js";
 export * from "./happyAgent/happyAgentChiefOfStaffRequest.js";
+export * from "./happyAgent/happyAgentHiddenIds.js";
 export * from "./happyAgent/happyAgentSupport.js";
 export * from "./happyAgent/happyAgentActivity.js";
 export * from "./happyAgent/happyAgentTerminalStore.js";
