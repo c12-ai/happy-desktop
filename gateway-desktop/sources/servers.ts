@@ -1,7 +1,7 @@
 /**
- * The servers this app opens: Happy Gateway addresses the person entered, and
- * how each is kept on disk. Nothing here uses Electron, so the checks import it
- * as it is.
+ * The servers this app opens: Happy Gateway addresses the person entered, or
+ * gateways reached through an SSH tunnel, and how each is kept on disk.
+ * Nothing here uses Electron, so the checks import it as it is.
  */
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -69,6 +69,117 @@ export function serverLabel(origin: string): string {
 }
 
 /**
+ * The gateway port the SSH form suggests: where the gateway listens on the
+ * server's own loopback. The local port suggested is the same number, so one
+ * origin (https://localhost:<port>) serves every computer.
+ */
+export const DEFAULT_TUNNEL_PORT = 8443;
+
+/**
+ * A gateway reached through `ssh -L`: the ~/.ssh/config host the person named,
+ * the gateway's port on that host's loopback, the port on this computer's
+ * loopback the tunnel listens on, and the SHA-256 fingerprint of the
+ * certificate the gateway must present there.
+ */
+export interface SshTunnel {
+    alias: string;
+    remotePort: number;
+    localPort: number;
+    fingerprint: string;
+}
+
+export type SshResult = { ok: true; tunnel: SshTunnel } | { ok: false; message: string };
+
+/**
+ * A host alias as ssh reads it from ~/.ssh/config: letters, digits, dots,
+ * hyphens and underscores, never starting with a hyphen, so it can never be
+ * read as an option.
+ */
+const ALIAS = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
+
+/** The four fields of the SSH form, checked as strictly as an address is. */
+export function sshServerParse(fields: {
+    alias: string;
+    remotePort: string;
+    localPort: string;
+    fingerprint: string;
+}): SshResult {
+    const alias = fields.alias.trim();
+    if (alias === "") return { ok: false, message: "Enter the SSH host, as in ~/.ssh/config." };
+    if (alias.length > 255 || !ALIAS.test(alias))
+        return {
+            ok: false,
+            message:
+                "An SSH host is a name from ~/.ssh/config: letters, digits, dots, hyphens and underscores, starting with a letter or digit.",
+        };
+    const remotePort = portParse(fields.remotePort, 1);
+    if (remotePort === null)
+        return { ok: false, message: "The gateway port is a number from 1 to 65535." };
+    const localPort = portParse(fields.localPort, 1024);
+    if (localPort === null)
+        return { ok: false, message: "The local port is a number from 1024 to 65535." };
+    const fingerprint = fingerprintParse(fields.fingerprint);
+    if (fingerprint === null)
+        return {
+            ok: false,
+            message:
+                "Paste the certificate's SHA-256 fingerprint you were given: 32 pairs of hex digits.",
+        };
+    return { ok: true, tunnel: { alias, remotePort, localPort, fingerprint } };
+}
+
+/** A port as typed: digits only, no sign, no leading zero, no spaces. */
+function portParse(text: string, lowest: number): number | null {
+    if (!/^[1-9][0-9]{0,4}$/u.test(text)) return null;
+    const port = Number(text);
+    return port >= lowest && port <= 65535 ? port : null;
+}
+
+/**
+ * A SHA-256 fingerprint as the person pastes it, in the form `openssl x509
+ * -fingerprint -sha256` prints (with or without its "sha256 Fingerprint="
+ * label, colons, spaces or line breaks, in either case), written back as 32
+ * upper-case pairs joined by colons.
+ */
+export function fingerprintParse(text: string): string | null {
+    const hex = text
+        .trim()
+        .replace(/^(?:sha-?256\s*)?fingerprint\s*=\s*/iu, "")
+        .replace(/[:\s]/gu, "");
+    if (!/^[0-9a-f]{64}$/iu.test(hex)) return null;
+    return hex.toUpperCase().match(/../gu)!.join(":");
+}
+
+/** The fingerprint of a certificate in PEM form: SHA-256 of its DER bytes, as openssl prints it. */
+export function certificateFingerprint(pem: string): string {
+    const body = /-----BEGIN CERTIFICATE-----([^-]+)-----END CERTIFICATE-----/u.exec(pem)?.[1];
+    if (body === undefined) return "";
+    const der = Buffer.from(body.replace(/\s/gu, ""), "base64");
+    return createHash("sha256").update(der).digest("hex").toUpperCase().match(/../gu)!.join(":");
+}
+
+/** Where the tunnel puts a server: https on this computer's loopback, at the local port. */
+export function tunnelOrigin(tunnel: SshTunnel): string {
+    return `https://localhost:${tunnel.localPort}`;
+}
+
+/** What the window title and the list show for a tunnelled server. */
+export function entryLabel(entry: ServerEntry): string {
+    return entry.ssh === undefined ? serverLabel(entry.origin) : `${entry.ssh.alias} (SSH)`;
+}
+
+/**
+ * A server's cookie store. A tunnelled server's is named by its alias, both ports
+ * and fingerprint: reused ports and replacement certificates never share cookies
+ * or Chromium's cached certificate decisions.
+ */
+export function entryPartition(entry: ServerEntry): string {
+    if (entry.ssh === undefined) return serverPartition(entry.origin);
+    const { alias, remotePort, localPort, fingerprint } = entry.ssh;
+    return `persist:server-${createHash("sha256").update(`ssh:${alias}:${remotePort}:${localPort}:${fingerprint}`).digest("hex").slice(0, 32)}`;
+}
+
+/**
  * Each server's own cookie store and cache. The name is derived from the
  * origin, so the same server always finds its own store again and two servers
  * never share one.
@@ -86,6 +197,8 @@ export interface WindowBounds {
 
 export interface ServerEntry {
     origin: string;
+    /** Present when the server is reached through an SSH tunnel. */
+    ssh?: SshTunnel;
     bounds?: WindowBounds;
 }
 
@@ -109,17 +222,25 @@ export class ServerStore {
         try {
             const raw = JSON.parse(readFileSync(path, "utf8")) as Partial<ServerState>;
             // A file edited by hand is read with the same rules as typed input.
+            const localPorts = new Set<number>();
             const servers = (Array.isArray(raw.servers) ? raw.servers : []).flatMap(
                 (entry): ServerEntry[] => {
+                    const bounds = boundsValid(entry?.bounds) ? { bounds: entry.bounds } : {};
+                    if (entry?.ssh !== undefined) {
+                        const tunnel = sshEntryRead(entry.ssh);
+                        if (
+                            tunnel === null ||
+                            entry.origin !== tunnelOrigin(tunnel) ||
+                            localPorts.has(tunnel.localPort)
+                        )
+                            return [];
+                        localPorts.add(tunnel.localPort);
+                        return [{ origin: entry.origin, ssh: tunnel, ...bounds }];
+                    }
                     const parsed =
                         typeof entry?.origin === "string" ? serverAddressParse(entry.origin) : null;
                     return parsed?.ok === true && parsed.origin === entry.origin
-                        ? [
-                              {
-                                  origin: parsed.origin,
-                                  ...(boundsValid(entry.bounds) ? { bounds: entry.bounds } : {}),
-                              },
-                          ]
+                        ? [{ origin: parsed.origin, ...bounds }]
                         : [];
                 },
             );
@@ -149,10 +270,15 @@ export class ServerStore {
         return this.#state.open;
     }
 
-    add(origin: string): void {
+    add(origin: string, ssh?: SshTunnel): void {
         if (this.has(origin)) return;
-        this.#state.servers.push({ origin });
+        this.#state.servers.push(ssh === undefined ? { origin } : { origin, ssh });
         this.#write();
+    }
+
+    /** The tunnelled server that already uses `localPort`, if any. */
+    byLocalPort(localPort: number): ServerEntry | undefined {
+        return this.#state.servers.find((entry) => entry.ssh?.localPort === localPort);
     }
 
     remove(origin: string): void {
@@ -179,6 +305,30 @@ export class ServerStore {
         writeFileSync(temporary, `${JSON.stringify(this.#state, null, 4)}\n`, { mode: 0o600 });
         renameSync(temporary, this.#path);
     }
+}
+
+/** A tunnel from servers.json, held to the same rules as the form. */
+function sshEntryRead(value: unknown): SshTunnel | null {
+    if (typeof value !== "object" || value === null) return null;
+    const raw = value as Record<string, unknown>;
+    if (
+        typeof raw.alias !== "string" ||
+        typeof raw.remotePort !== "number" ||
+        typeof raw.localPort !== "number" ||
+        typeof raw.fingerprint !== "string"
+    )
+        return null;
+    const parsed = sshServerParse({
+        alias: raw.alias,
+        remotePort: String(raw.remotePort),
+        localPort: String(raw.localPort),
+        fingerprint: raw.fingerprint,
+    });
+    return parsed.ok &&
+        parsed.tunnel.alias === raw.alias &&
+        parsed.tunnel.fingerprint === raw.fingerprint
+        ? parsed.tunnel
+        : null;
 }
 
 function boundsValid(value: unknown): value is WindowBounds {

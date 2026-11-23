@@ -17,8 +17,14 @@
                 <h2>Your servers</h2>
                 <ul id="servers"></ul>
             </section>
+            <h2 id="add-title">Add a server</h2>
+            <div class="tabs" role="tablist">
+                <button id="tab-address" type="button" role="tab" aria-selected="true">
+                    By address
+                </button>
+                <button id="tab-ssh" type="button" role="tab" aria-selected="false">Via SSH</button>
+            </div>
             <form id="add" autocomplete="off">
-                <h2 id="add-title">Add a server</h2>
                 <label for="address">Server address</label>
                 <div class="row">
                     <input
@@ -36,6 +42,57 @@
                     https:// only. The address must have a certificate this computer trusts.
                 </p>
                 <p id="message" role="alert"></p>
+            </form>
+            <form id="add-ssh" autocomplete="off" hidden>
+                <label for="ssh-alias">SSH host</label>
+                <input
+                    id="ssh-alias"
+                    name="alias"
+                    type="text"
+                    spellcheck="false"
+                    placeholder="nitro"
+                    required
+                />
+                <p class="hint">
+                    A host from ~/.ssh/config that <code>ssh</code> reaches in Terminal.
+                </p>
+                <div class="ports">
+                    <div>
+                        <label for="ssh-remote-port">Gateway port there</label>
+                        <input
+                            id="ssh-remote-port"
+                            name="remotePort"
+                            type="text"
+                            inputmode="numeric"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label for="ssh-local-port">Port on this computer</label>
+                        <input
+                            id="ssh-local-port"
+                            name="localPort"
+                            type="text"
+                            inputmode="numeric"
+                            required
+                        />
+                    </div>
+                </div>
+                <label for="ssh-fingerprint">Certificate fingerprint (SHA-256)</label>
+                <textarea
+                    id="ssh-fingerprint"
+                    name="fingerprint"
+                    rows="3"
+                    spellcheck="false"
+                    placeholder="AB:CD:…"
+                    required
+                ></textarea>
+                <p class="hint">
+                    Paste the fingerprint your administrator gave you. The server is added only if
+                    the certificate it presents has exactly this fingerprint.
+                </p>
+                <button id="ssh-button" type="submit">Connect and Add</button>
+                <p id="ssh-message" role="alert"></p>
             </form>
         </main>
     </body>

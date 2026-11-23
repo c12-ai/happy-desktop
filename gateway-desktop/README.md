@@ -17,6 +17,15 @@ Electron and electron-builder versions this repository's lockfile pins.
   every other address opens in the default browser, and requests to any other
   host are refused whatever the page asks for. Server pages have no preload and
   no bridge into the app.
+- **Via SSH.** An SSH alias and gateway/local ports open a loopback forward with
+  the system's `/usr/bin/ssh`, fixed options and existing config/agent/known_hosts.
+  The required pasted SHA-256 certificate fingerprint must match before any
+  HTTP request. Its session accepts only that pin and exact localhost origin;
+  normal HTTPS sessions retain system trust. SSH sessions are named by alias,
+  both ports and fingerprint, so certificate rotation starts a fresh session.
+  Closing the last server window stops its tunnel; startup cleans up only exact
+  recorded orphan SSH processes owned by this user. Use a dedicated SSH alias
+  without additional forwards. The app never reads or writes SSH keys itself.
 - **Nothing else.** No updater, no analytics, no local agent, no URL schemes.
   The spellchecker is the system's on macOS; elsewhere it is off, because
   Chromium would download dictionaries from Google. The app refuses to start
@@ -37,7 +46,9 @@ symlinks kept. Output: `gateway-desktop/release/Karis-Workbench-<version>-<arch>
 
 The build refuses a packaged app with an update feed, with any file it does
 not need, with a string from a list of upstream servers, updaters, analytics
-and certificate exceptions, or with Electron fuses other than those it sets.
+and global certificate exceptions, or with Electron fuses other than those it sets.
+Exactly one certificate verification site is allowed for pinned SSH sessions;
+the only subprocess programs are `/usr/bin/ssh` and `/bin/ps`.
 
 The icon is a placeholder: `assets/icon-source.svg`, put on upstream's rounded
 tile. Replace that file (any square artwork) and rebuild.
@@ -45,4 +56,4 @@ tile. Replace that file (any square artwork) and rebuild.
 Checks: `pnpm --dir packages/happy-desktop-electron exec tsc -p ../../gateway-desktop/tsconfig.json`,
 `oxfmt --check gateway-desktop` and `oxlint gateway-desktop`. The behaviour is
 checked against a real gateway by `checks/mac-desktop.mjs` in Happy Gateway's
-repository.
+repository, with additional real-SSH lifecycle and certificate-rotation checks.

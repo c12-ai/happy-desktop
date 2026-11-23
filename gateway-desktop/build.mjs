@@ -13,8 +13,10 @@
  * with its symlinks kept, which electron-builder's own zip does only on macOS.
  *
  * The app has no updater, no analytics and no update manifest, and the build
- * checks the packaged result for each of those, for certificate exceptions and
- * for the Electron fuses, before it writes the zip.
+ * checks the packaged result for each of those, for certificate exceptions
+ * (one pinned-certificate check, for SSH-tunnelled servers, and no other), for
+ * the programs it may start (ssh and ps) and for the Electron fuses, before it
+ * writes the zip.
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -61,7 +63,11 @@ const FUSES = {
     // The app loads nothing from file://; upstream leaves Electron's default here.
     grantFileProtocolExtraPrivileges: false,
 };
-/** Strings no file of the packaged app may contain: upstream's servers, an updater, analytics, a certificate exception. */
+/**
+ * Strings no file of the packaged app may contain: upstream's servers, an
+ * updater, analytics, a certificate exception. setCertificateVerifyProc is
+ * not among them; CERTIFICATE_CHECKS holds it to one call, in main.js.
+ */
 const FORBIDDEN = [
     "slopus",
     "happy.engineering",
@@ -72,7 +78,6 @@ const FORBIDDEN = [
     "electron-updater",
     "autoUpdater",
     "posthog",
-    "setCertificateVerifyProc",
     '"certificate-error"',
     "importCertificate",
     "NODE_EXTRA_CA_CERTS",
@@ -80,6 +85,11 @@ const FORBIDDEN = [
     "rejectUnauthorized",
     "appendSwitch",
 ];
+
+/** main.js calls setCertificateVerifyProc exactly once: pinnedTrust, for tunnelled servers' own stores. */
+const CERTIFICATE_CHECKS = 1;
+/** The only programs the app starts, and the one place it starts them. */
+const PROGRAMS = ["/usr/bin/ssh", "/bin/ps"];
 
 // The tools are happy-desktop-electron's own; the app itself has no dependencies.
 const modules = join(here, "node_modules");
@@ -308,6 +318,35 @@ async function packagedVerify(resources, executable) {
         if (found.length > 0)
             throw new Error(`${name} in ${archive} contains ${found.join(", ")}.`);
     }
+    const main = extractFile(archive, "dist/main.js").toString("utf8");
+    const verifyProcs = main.split("setCertificateVerifyProc").length - 1;
+    if (verifyProcs !== CERTIFICATE_CHECKS)
+        throw new Error(
+            `dist/main.js calls setCertificateVerifyProc ${verifyProcs} times; only pinnedTrust may.`,
+        );
+    const processImports = [...main.matchAll(/^import .* from "(?:node:)?child_process";$/gmu)].map(
+        (found) => found[0],
+    );
+    if (
+        processImports.length !== 1 ||
+        processImports[0] !== 'import { spawn } from "node:child_process";' ||
+        main.split("spawn(").length - 1 !== 1 ||
+        /\b(?:utilityProcess|execFileSync|spawnSync|execSync|shell\.openPath)\b/u.test(main)
+    )
+        throw new Error("dist/main.js starts processes other than through tunnel.ts's launch().");
+    // Bundled, `const` may read `var`, and the set may carry a /* @__PURE__ */ mark.
+    const declared = (name) =>
+        new RegExp(`(?:const|let|var) ${name} = (?:/\\* @__PURE__ \\*/ )?(.+);`, "u").exec(
+            main,
+        )?.[1];
+    const paths = [declared("SSH_PATH"), declared("PS_PATH")].map(
+        (value) => value && JSON.parse(value),
+    );
+    if (
+        declared("PROGRAMS") !== "new Set([SSH_PATH, PS_PATH])" ||
+        JSON.stringify(paths) !== JSON.stringify(PROGRAMS)
+    )
+        throw new Error(`dist/main.js may start ${PROGRAMS.join(" and ")} only; found ${paths}.`);
     if (readdirSync(resources).some((name) => name === "node_modules" || name.endsWith(".node")))
         throw new Error(`${resources} carries native modules or node_modules.`);
     const fusesEntry = createRequire(requireTool.resolve("electron-builder")).resolve(
@@ -331,7 +370,7 @@ async function packagedVerify(resources, executable) {
                 `${executable}: fuse ${FuseV1Options[fuse]} is ${wire[fuse]}, expected ${state}.`,
             );
     console.log(
-        `checked ${archive}: ${files.length} entries, no update feed, no forbidden strings, fuses as set`,
+        `checked ${archive}: ${files.length} entries, no update feed, no forbidden strings, one certificate check, programs ${PROGRAMS.join(" and ")} only, fuses as set`,
     );
 }
 
