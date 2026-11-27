@@ -102,6 +102,7 @@ export function deepEqual(left: unknown, right: unknown): boolean {
 }
 
 const THINKING_LABELS: Record<HappyAgentThinkingLevel, string> = {
+    default: "Default",
     off: "Off",
     on: "On",
     minimal: "Minimal",

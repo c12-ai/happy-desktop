@@ -920,7 +920,8 @@ export function desktopAnalyticsCreate(options: {
     const modelOf = (model: HappyAgentActivityModel): AnalyticsModelProperties => ({
         model_family: analyticsModelFamily(model.modelId),
         model_provider_kind: analyticsProviderKind(model.providerType),
-        effort: model.effort ?? null,
+        // The shared catalog has no provider-default value; no level was selected explicitly.
+        effort: model.effort === "default" ? null : (model.effort ?? null),
     });
 
     const errorThrottle = analyticsErrorThrottleCreate();
