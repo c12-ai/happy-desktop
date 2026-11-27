@@ -217,6 +217,7 @@ export type HappyAgentWorkingPhase =
 
 /** Reasoning/effort levels a model may expose, ordered from least to most reasoning. */
 export type HappyAgentThinkingLevel =
+    | "default"
     | "off"
     | "on"
     | "minimal"

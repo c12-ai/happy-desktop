@@ -42,6 +42,7 @@ function object(value: unknown): Record<string, unknown> | undefined {
 }
 function effortParse(value: unknown): HappyAgentThinkingLevel | undefined {
     switch (value) {
+        case "default":
         case "off":
         case "on":
         case "minimal":

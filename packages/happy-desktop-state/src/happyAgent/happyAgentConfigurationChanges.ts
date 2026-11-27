@@ -3,6 +3,7 @@ import type { HappyAgentModel, HappyAgentModelProvider } from "./happyAgentTypes
 import { happyAgentPermissionLabel } from "./happyAgentSupport.js";
 
 const EFFORT_LABELS: Readonly<Record<string, string>> = {
+    default: "Default",
     none: "None",
     minimal: "Minimal",
     low: "Low",
