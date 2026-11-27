@@ -97,7 +97,7 @@ const STATE_VARIANTS: Record<HappyAgentAiProviderCredentialState, BadgeVariant> 
 };
 
 /**
- * Settings › Inference on Happy Cloud: what conversations run on, in three
+ * Settings › Providers on Happy Cloud: what conversations run on, in three
  * lists — what Happy includes, the team's, and the reader's own — with the
  * keys and sign-ins behind each, and the way to add more.
  */
@@ -106,7 +106,7 @@ export function HappyAgentAiProviders(props: HappyAgentAiProvidersProps) {
         <HappyAgentSettingsSection
             description="What your conversations run on. Add your own key or subscription to use your own account."
             rows="cards"
-            title="Inference"
+            title="Providers"
         >
             <Box
                 className="happy-agent-ai-providers"
@@ -123,7 +123,7 @@ export function HappyAgentAiProviders(props: HappyAgentAiProvidersProps) {
                     </Banner>
                 ) : null}
                 {props.error ? (
-                    <Banner tone="danger" title="Inference unavailable">
+                    <Banner tone="danger" title="Providers unavailable">
                         {props.error}
                     </Banner>
                 ) : props.loading ? (

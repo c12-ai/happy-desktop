@@ -25,7 +25,7 @@ const categories: readonly HappyAgentSettingsCategory[] = [
     { icon: "settings", id: "general", label: "General", tone: "gray" },
     { icon: "users", id: "account", label: "Account", tone: "blue" },
     { icon: "bell", id: "sharing", label: "Notifications", tone: "red" },
-    { group: "Agents", icon: "globe", id: "providers", label: "Inference", tone: "indigo" },
+    { group: "Agents", icon: "globe", id: "providers", label: "Providers", tone: "indigo" },
     { group: "Agents", icon: "terminal", id: "compute", label: "Compute", tone: "blue" },
     { group: "Agents", icon: "zap", id: "usage", label: "Usage", tone: "teal" },
     { group: "Agents", icon: "lock", id: "secrets", label: "Secrets", tone: "green" },

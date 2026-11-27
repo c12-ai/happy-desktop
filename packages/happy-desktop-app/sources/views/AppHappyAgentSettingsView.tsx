@@ -170,10 +170,10 @@ export const HAPPY_AGENT_SETTINGS_CATEGORIES: readonly HappyAgentSettingsCategor
     { icon: "call", id: "voice", label: "Voice", tone: "orange" },
     // What agents on this machine are told, run on, and may use.
     { group: "Agents", icon: "doc", id: "instructions", label: "Instructions", tone: "purple" },
-    { group: "Agents", icon: "globe", id: "providers", label: "Inference", tone: "indigo" },
+    { group: "Agents", icon: "globe", id: "providers", label: "Providers", tone: "indigo" },
     // The computers agents run on, beside the models they run; Happy Cloud only.
     { group: "Agents", icon: "terminal", id: "compute", label: "Compute", tone: "blue" },
-    // Usage follows Inference because it is the same accounts read the other
+    // Usage follows Providers because it is the same accounts read the other
     // way round: which of them exist, then what each has spent.
     { group: "Agents", icon: "zap", id: "usage", label: "Usage", tone: "teal" },
     { group: "Agents", icon: "lock", id: "secrets", label: "Secrets", tone: "green" },
@@ -211,7 +211,7 @@ export const HAPPY_AGENT_SETTINGS_MOVED_CATEGORIES: Readonly<Record<string, stri
 
 /**
  * The category a `happy://settings/<page>` link opens here, or nothing when
- * this window has no such page. Import lives on the Inference page.
+ * this window has no such page. Import lives on the Providers page.
  */
 export function happyAgentSettingsSectionOf(page: string): string | undefined {
     const section =
@@ -2460,7 +2460,7 @@ export function providerAddProps(
 
 /**
  * The team's own provider being added or edited, over whichever surface
- * opened it: Settings › Inference, or onboarding's AI step.
+ * opened it: Settings › Providers, or onboarding's AI step.
  */
 export function AppCustomProviderDialog(props: {
     readonly snapshot: HappyAgentProvidersSnapshot;

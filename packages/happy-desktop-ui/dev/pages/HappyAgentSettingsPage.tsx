@@ -49,7 +49,7 @@ const categories: readonly HappyAgentSettingsCategory[] = [
     { icon: "users", id: "account", label: "Account", tone: "blue" },
     { icon: "mobile", id: "mobile-access", label: "Mobile access", tone: "green" },
     { group: "Agents", icon: "doc", id: "instructions", label: "Instructions", tone: "purple" },
-    { group: "Agents", icon: "globe", id: "providers", label: "Inference", tone: "indigo" },
+    { group: "Agents", icon: "globe", id: "providers", label: "Providers", tone: "indigo" },
     { group: "Agents", icon: "zap", id: "usage", label: "Usage", tone: "teal" },
     { group: "Agents", icon: "lock", id: "secrets", label: "Secrets", tone: "green" },
     { group: "Advanced", icon: "file-diff", id: "file-tiers", label: "File tiers", tone: "orange" },
@@ -700,7 +700,7 @@ function AiProvidersSpecimen(props: {
                 description="Every model provider this server knows about"
                 onCategorySelect={noop}
                 onClose={noop}
-                title="Inference"
+                title="Providers"
             >
                 <HappyAgentAiProviders
                     connections={aiProviderConnections}
@@ -1612,7 +1612,7 @@ export function HappyAgentSettingsBlueprintPage() {
                     description="Every model provider this Happy Agent daemon knows about"
                     onCategorySelect={noop}
                     onClose={noop}
-                    title="Inference"
+                    title="Providers"
                 >
                     <HappyAgentProviderSettings
                         onModelEnabledChange={noop}
@@ -1622,7 +1622,7 @@ export function HappyAgentSettingsBlueprintPage() {
                 </HappyAgentSettingsShell>
             </FullScreenSpecimen>
             <FullScreenSpecimen
-                label="Inference — Google Gemini"
+                label="Providers — Google Gemini"
                 number="03a"
                 detail="Gateway credential status, explicit model selection, and verification"
             >
@@ -1631,7 +1631,7 @@ export function HappyAgentSettingsBlueprintPage() {
                     categories={categories}
                     onCategorySelect={noop}
                     onClose={noop}
-                    title="Inference"
+                    title="Providers"
                 >
                     <HappyGatewayGeminiSettings
                         config={{
@@ -1663,7 +1663,7 @@ export function HappyAgentSettingsBlueprintPage() {
                     description="Every model provider this server knows about"
                     onCategorySelect={noop}
                     onClose={noop}
-                    title="Inference"
+                    title="Providers"
                 >
                     <HappyAgentProviderSettings
                         onKeyAdd={() => Promise.resolve()}
@@ -1687,7 +1687,7 @@ export function HappyAgentSettingsBlueprintPage() {
                     description="Every model provider this server knows about"
                     onCategorySelect={noop}
                     onClose={noop}
-                    title="Inference"
+                    title="Providers"
                 >
                     <HappyAgentProviderSettings
                         onCustomProviderCreate={noop}
@@ -1714,7 +1714,7 @@ export function HappyAgentSettingsBlueprintPage() {
                         description="Every model provider this server knows about"
                         onCategorySelect={noop}
                         onClose={noop}
-                        title="Inference"
+                        title="Providers"
                     >
                         <HappyAgentProviderSettings
                             onCustomProviderCreate={noop}
@@ -1746,7 +1746,7 @@ export function HappyAgentSettingsBlueprintPage() {
                         description="Every model provider this server knows about"
                         onCategorySelect={noop}
                         onClose={noop}
-                        title="Inference"
+                        title="Providers"
                     >
                         <HappyAgentProviderSettings
                             onCustomProviderCreate={noop}
@@ -1781,7 +1781,7 @@ export function HappyAgentSettingsBlueprintPage() {
                     description="Every model provider this server knows about"
                     onCategorySelect={noop}
                     onClose={noop}
-                    title="Inference"
+                    title="Providers"
                 >
                     <HappyAgentCredentialImport
                         onClose={noop}
@@ -2058,7 +2058,7 @@ export function HappyAgentSettingsBlueprintPage() {
                     description="Every model provider this Happy Agent daemon knows about"
                     onCategorySelect={noop}
                     onClose={noop}
-                    title="Inference"
+                    title="Providers"
                 >
                     <HappyAgentProviderSettings
                         onModelEnabledChange={noop}
@@ -2079,7 +2079,7 @@ export function HappyAgentSettingsBlueprintPage() {
                     description="Every model provider this Happy Agent daemon knows about"
                     onCategorySelect={noop}
                     onClose={noop}
-                    title="Inference"
+                    title="Providers"
                 >
                     <HappyAgentProviderSettings
                         loading
@@ -2100,7 +2100,7 @@ export function HappyAgentSettingsBlueprintPage() {
                     description="Every model provider this Happy Agent daemon knows about"
                     onCategorySelect={noop}
                     onClose={noop}
-                    title="Inference"
+                    title="Providers"
                 >
                     <HappyAgentProviderSettings
                         error="The Happy Agent daemon could not read its model catalog."

@@ -284,14 +284,14 @@ export interface HappyAgentWorkspaceClient {
     /** The one host-owned identity work is authored as. */
     profile(): HappyAgentProfileStore | undefined;
     /**
-     * Which model providers this Happy Agent will use, as the Inference settings
+     * Which model providers this Happy Agent will use, as the Providers settings
      * category reads and changes them. Materialized on first access and shared;
      * every configuration the daemon confirms through it also replaces the
      * catalog `models` holds, so a provider switched off stops being offered.
      */
     providers(): HappyAgentProvidersStore;
     /**
-     * Settings › Inference › Import: copies credentials found on this computer
+     * Settings › Providers › Import: copies credentials found on this computer
      * to the server. Only a Happy Cloud server reached from a desktop shell
      * has one; elsewhere this is undefined.
      */
