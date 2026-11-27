@@ -198,6 +198,7 @@ export interface HappyAgentSession {
     readonly workspace: HappyAgentWorkspaceStore;
     readonly instructions: HappyAgentInstructionsStore;
     readonly securityPolicy: HappyAgentSecurityPolicyStore;
+    readonly daemonSecrets?: true;
     readonly secrets: () => HappyAgentSecretsStore;
     readonly clusterSecrets: () => HappyAgentClusterSecretsStore | undefined;
     /** This Happy Agent's published artifacts, materialized as their surfaces open. */
@@ -436,6 +437,7 @@ export function happyAgentConnectionOpen(input: {
     readonly cloudServer?: { readonly name: string; readonly forget: () => Promise<void> };
     /** Whether this is a Happy Cloud server, in the desktop or on the web. */
     readonly happyCloud?: boolean;
+    readonly daemonSecrets?: true;
     /**
      * The window's appearance right now, read again for every terminal this
      * connection opens. A terminal is started in it and keeps it afterwards.
@@ -551,6 +553,7 @@ export function happyAgentConnectionOpen(input: {
         : onboardingStore;
     const client: HappyAgentWorkspaceClient = happyAgentWorkspaceClientCreate({
         client: directClient,
+        ...(input.daemonSecrets ? { daemonSecrets: input.daemonSecrets } : {}),
         providerCredentials: happyAgentProviderCredentialsApiCreate({
             endpoint: directClient.endpoint,
             token: "happy-local-capability",
@@ -769,6 +772,7 @@ export function happyAgentConnectionOpen(input: {
                     workspace: preparedWorkspace,
                     instructions: client.instructions(),
                     securityPolicy: client.securityPolicy(),
+                    ...(input.daemonSecrets ? { daemonSecrets: input.daemonSecrets } : {}),
                     secrets: () => client.secrets(),
                     clusterSecrets: () => client.clusterSecrets(),
                     artifacts: client.artifacts(),

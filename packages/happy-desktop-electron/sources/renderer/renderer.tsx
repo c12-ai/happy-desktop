@@ -149,6 +149,7 @@ import { happyShareLinkClicksRoute } from "./happyShareLinkClicks";
 import { startupValuesStoreCreate, type StartupValuesStore } from "./startupValuesStore";
 import { browserDevBridgeCreate } from "./browserDevBridge";
 import { cloudWebBridgeCreate } from "./cloudWebBridge";
+import { cloudWebOrigins } from "./cloudWebOrigins";
 import { cloudWebTabFollow } from "./cloudWebTab";
 import { cloudWebSignInStoreCreate, type CloudWebSignInStore } from "./cloudWebSignInStore";
 import { localWebBuild } from "./localWebBuild";
@@ -1772,7 +1773,11 @@ if (mediaPreviewBridge) {
         const happyAgents = happyAgentDirectoryStoreCreate(desktopBridge, runtimeStore, {
             cloudHostFor: auth.hostFor,
             ...(cloudWebSession
-                ? { localHappyCloud: true, localLabel: cloudWebSession.serverName }
+                ? {
+                      localHappyCloud: true,
+                      localDaemonSecrets: cloudWebOrigins.sameOrigin === true,
+                      localLabel: cloudWebSession.serverName,
+                  }
                 : {}),
             // Asked for only after the window is up, by when the inbox is.
             happyLinkReceive: (url) => happyLinkInbox.linkReceive(url),

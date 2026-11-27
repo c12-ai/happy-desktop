@@ -607,6 +607,7 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
     );
     const host = hostHappyAgent(directory);
     const happyCloud = host?.happyCloud === true;
+    const useClusterSecrets = happyCloud && host?.session?.daemonSecrets !== true;
     // Followed while Settings is open: whether Administration is listed at all
     // depends on the server reporting onboarding settings.
     const onboardingSettingsStore = host?.session?.onboardingSettings?.();
@@ -791,7 +792,7 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
     // daemon's environment bundles, and answers the daemon's routes with 404.
     const secretsWatched = section === "secrets" || stateOpen;
     const secretsStore =
-        (secretsWatched && !happyCloud ? host?.session?.secrets?.() : undefined) ??
+        (secretsWatched && !useClusterSecrets ? host?.session?.secrets?.() : undefined) ??
         happyAgentSecretsStoreNoop;
     const secrets = useSyncExternalStore(
         secretsStore.subscribe,
@@ -799,7 +800,7 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
         secretsStore.get,
     );
     const clusterSecretsStore =
-        (secretsWatched && happyCloud ? host?.session?.clusterSecrets?.() : undefined) ??
+        (secretsWatched && useClusterSecrets ? host?.session?.clusterSecrets?.() : undefined) ??
         happyAgentClusterSecretsStoreNoop;
     const clusterSecrets = useSyncExternalStore(
         clusterSecretsStore.subscribe,
@@ -1002,7 +1003,7 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
             description={
                 mobileLinkHeading
                     ? mobileLinkHeading.description
-                    : section === "secrets" && happyCloud
+                    : section === "secrets" && useClusterSecrets
                       ? "Keys and credentials agents use without seeing them"
                       : section === "instructions" && happyCloud
                         ? "Agent guidance and permission review for this team"
@@ -1289,7 +1290,7 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
                             models,
                             profile,
                             providers,
-                            secrets: happyCloud ? clusterSecrets : secrets,
+                            secrets: useClusterSecrets ? clusterSecrets : secrets,
                             securityPolicy,
                             settings,
                             titleShimmer,
@@ -1782,7 +1783,7 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
                         Members belong to a Happy Cloud server. Open one to see who is on it.
                     </Banner>
                 )
-            ) : section === "secrets" && happyCloud ? (
+            ) : section === "secrets" && useClusterSecrets ? (
                 <AppClusterSecretSettings
                     snapshot={clusterSecrets}
                     store={clusterSecretsStore}

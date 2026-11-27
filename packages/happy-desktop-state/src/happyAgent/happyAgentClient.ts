@@ -612,6 +612,8 @@ export interface HappyAgentWorkspaceClientDeps {
     readonly cloudProviders?: HappyAgentCloudProvidersApi;
     /** Happy Cloud's own routes, on every Happy Cloud connection, in the desktop and on the web. */
     readonly cloudRequest?: HappyCloudRequest;
+    /** Gateway uses daemon secrets even when other product features use Cloud routes. */
+    readonly daemonSecrets?: true;
     /** A Happy Cloud server's own routes, and how this window drops the server. */
     readonly cloudServer?: {
         readonly serverName: string;
@@ -1314,7 +1316,7 @@ export function happyAgentWorkspaceClientCreate(
             if (!happyAgentHealthCapability(deps.connection.sync.health(), "artifactSecretActions"))
                 return undefined;
             const request = deps.cloudRequest;
-            genUiActions ??= request
+            genUiActions ??= request && !deps.daemonSecrets
                 ? happyAgentGenUiClusterActionsCreate({ request })
                 : happyAgentGenUiDaemonActionsCreate({ client: deps.client });
             return genUiActions;
@@ -1503,7 +1505,7 @@ export function happyAgentWorkspaceClientCreate(
         clusterSecrets() {
             if (disposed) throw new Error("The Happy Agent client is disposed.");
             const request = deps.cloudRequest;
-            if (!request) return undefined;
+            if (!request || deps.daemonSecrets) return undefined;
             clusterSecretsStore ??= happyAgentClusterSecretsStoreCreate({
                 client: deps.client,
                 request,

@@ -206,6 +206,8 @@ export interface HappyAgentDirectoryDeps {
     readonly cloud?: boolean;
     /** The cloud web app, where this window's own Happy Agent is a Happy Cloud server. */
     readonly localHappyCloud?: boolean;
+    /** Gateway's own web connection uses daemon secrets, not the Cloud catalog. */
+    readonly localDaemonSecrets?: boolean;
     /** What this window's own Happy Agent is called, where it is not "This Mac". */
     readonly localLabel?: string;
     readonly conversationOpen: (happyAgentId: string, location: HappyAgentSessionLocation) => void;
@@ -770,6 +772,9 @@ export function happyAgentDirectoryStoreCreate(
             // and ports can reach; the local one already has them.
             deviceBridges: happyAgent.entry.remoteId !== undefined,
             ...(happyAgent.entry.happyCloud || cloudName !== undefined ? { happyCloud: true } : {}),
+            ...(happyAgent.entry.id === LOCAL_HAPPY_AGENT_ID && deps.localDaemonSecrets
+                ? { daemonSecrets: true }
+                : {}),
             // Only the shell reads this computer's credentials, and only a
             // Happy Cloud server takes them. Leaving or deleting the server
             // takes it out of this window, as removing it from the rail does.
