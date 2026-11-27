@@ -50,7 +50,7 @@ const categories: readonly HappyAgentSettingsCategory[] = [
     { icon: "mobile", id: "mobile-access", label: "Mobile access", tone: "green" },
     { icon: "call", id: "voice", label: "Voice", tone: "orange" },
     { group: "Agents", icon: "doc", id: "instructions", label: "Instructions", tone: "purple" },
-    { group: "Agents", icon: "globe", id: "providers", label: "Inference", tone: "indigo" },
+    { group: "Agents", icon: "globe", id: "providers", label: "Providers", tone: "indigo" },
     { group: "Agents", icon: "zap", id: "usage", label: "Usage", tone: "teal" },
     { group: "Agents", icon: "lock", id: "secrets", label: "Secrets", tone: "green" },
     { group: "Advanced", icon: "file-diff", id: "file-tiers", label: "File tiers", tone: "orange" },

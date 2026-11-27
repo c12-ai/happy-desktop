@@ -474,9 +474,9 @@ const SETTINGS_JUMPS: readonly {
     },
     {
         id: "settings:providers",
-        title: "Settings › Inference",
+        title: "Settings › Providers",
         section: "providers",
-        sectionLabel: "Inference",
+        sectionLabel: "Providers",
         icon: "globe",
         keywords: "providers ai models accounts keys subscriptions",
     },
