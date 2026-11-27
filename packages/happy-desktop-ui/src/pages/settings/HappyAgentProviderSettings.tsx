@@ -258,43 +258,19 @@ export function HappyAgentProviderSettings(props: HappyAgentProviderSettingsProp
                         </header>
                         <Box className="happy-agent-provider__models">
                             {provider.models.map((model) => (
-                                <Box
-                                    className="happy-agent-provider__model"
-                                    data-happy-desktop-ui="happy-agent-provider-model"
+                                <HappyAgentProviderModelToggle
                                     key={model.id}
-                                >
-                                    <Box className="happy-agent-provider__model-text">
-                                        <Box className="happy-agent-provider__model-title">
-                                            <span
-                                                className="happy-agent-provider__model-name"
-                                                data-happy-desktop-ui="happy-agent-provider-model-name"
-                                            >
-                                                {model.name}
-                                            </span>
-                                            {model.isDefault ? (
-                                                <span className="happy-agent-provider__model-default">
-                                                    Default
-                                                </span>
-                                            ) : null}
-                                        </Box>
-                                        <span
-                                            className="happy-agent-provider__model-meta"
-                                            data-happy-desktop-ui="happy-agent-provider-model-meta"
-                                        >
-                                            {modelMeta(model)}
-                                        </span>
-                                    </Box>
-                                    <Switch
-                                        aria-label={`${model.name} enabled`}
-                                        checked={model.enabled}
-                                        disabled={
-                                            locked || model.isDefault || provider.status !== "ready"
-                                        }
-                                        onChange={(enabled) =>
-                                            props.onModelEnabledChange(model.id, enabled)
-                                        }
-                                    />
-                                </Box>
+                                    name={model.name}
+                                    description={modelMeta(model)}
+                                    isDefault={model.isDefault}
+                                    checked={model.enabled}
+                                    disabled={
+                                        locked || model.isDefault || provider.status !== "ready"
+                                    }
+                                    onChange={(enabled) =>
+                                        props.onModelEnabledChange(model.id, enabled)
+                                    }
+                                />
                             ))}
                             {provider.models.length === 0 ? (
                                 <span
@@ -626,7 +602,51 @@ function providerMeta(provider: HappyAgentProviderRow): string {
     return [models, provider.serviceTiers.join(", ")].filter(Boolean).join(" · ");
 }
 
-function modelMeta(model: HappyAgentProviderModelRow): string {
+export function HappyAgentProviderModelToggle(props: {
+    name: string;
+    description: string;
+    isDefault?: boolean;
+    checked: boolean;
+    disabled?: boolean;
+    onChange: (enabled: boolean) => void;
+}) {
+    return (
+        <Box
+            className="happy-agent-provider__model"
+            data-happy-desktop-ui="happy-agent-provider-model"
+        >
+            <Box className="happy-agent-provider__model-text">
+                <Box className="happy-agent-provider__model-title">
+                    <span
+                        className="happy-agent-provider__model-name"
+                        data-happy-desktop-ui="happy-agent-provider-model-name"
+                    >
+                        {props.name}
+                    </span>
+                    {props.isDefault ? (
+                        <span className="happy-agent-provider__model-default">Default</span>
+                    ) : null}
+                </Box>
+                <span
+                    className="happy-agent-provider__model-meta"
+                    data-happy-desktop-ui="happy-agent-provider-model-meta"
+                >
+                    {props.description}
+                </span>
+            </Box>
+            <Switch
+                aria-label={`${props.name} enabled`}
+                checked={props.checked}
+                disabled={props.disabled}
+                onChange={props.onChange}
+            />
+        </Box>
+    );
+}
+
+export function modelMeta(
+    model: Pick<HappyAgentProviderModelRow, "modelId" | "contextWindow" | "efforts">,
+): string {
     const parts = [model.modelId];
     if (model.contextWindow !== undefined)
         parts.push(`${Math.round(model.contextWindow / 1000)}K context`);

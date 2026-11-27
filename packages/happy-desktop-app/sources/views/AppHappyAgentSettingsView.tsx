@@ -1512,13 +1512,24 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
                             busy={gemini.busy !== undefined}
                             {...(gemini.error === undefined ? {} : { error: gemini.error })}
                             {...(gemini.config === undefined ? {} : { config: gemini.config })}
-                            selected={gemini.selected}
+                            catalogModels={
+                                providerRows(
+                                    providers.providers.filter(
+                                        (provider) =>
+                                            provider.id === HAPPY_GATEWAY_GEMINI_PROVIDER_ID,
+                                    ),
+                                    settings,
+                                    selection,
+                                    false,
+                                    usage.providers,
+                                    cloudProviders,
+                                )[0]?.models ?? []
+                            }
                             onKeySave={geminiStore.keySave}
                             onDisconnect={geminiStore.keyDisconnect}
                             onVerify={geminiStore.catalogVerify}
-                            onModelSelect={geminiStore.modelSelect}
-                            onModelsSave={geminiStore.modelsSave}
-                            onDisable={geminiStore.providerDisable}
+                            onModelEnabledChange={geminiStore.modelEnabledUpdate}
+                            onProviderEnabledChange={geminiStore.providerEnabledUpdate}
                         />
                     ) : null}
                     {cloudProvidersStore &&

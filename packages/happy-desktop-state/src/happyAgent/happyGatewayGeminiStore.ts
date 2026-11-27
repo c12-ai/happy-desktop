@@ -6,14 +6,17 @@ export interface HappyGatewayGeminiConfig {
     readonly keyPresent: boolean;
     readonly enabled: boolean;
     readonly modelIds: readonly string[];
-    readonly candidates: readonly { readonly id: string; readonly name: string }[];
+    readonly candidates: readonly {
+        readonly id: string;
+        readonly name: string;
+        readonly contextWindow?: number;
+    }[];
     readonly refreshedAt: string | null;
 }
 
 export interface HappyGatewayGeminiSnapshot {
     readonly access: "loading" | "absent" | "ready" | "unavailable";
     readonly config?: HappyGatewayGeminiConfig;
-    readonly selected: readonly string[];
     readonly busy?: "key" | "disconnect" | "verify" | "models";
     readonly stale?: boolean;
     readonly error?: string;
@@ -23,16 +26,14 @@ export interface HappyGatewayGeminiStore {
     get(): HappyGatewayGeminiSnapshot;
     subscribe(listener: () => void): () => void;
     keySave(secret: string): void;
-    keyDisconnect(): void;
+    keyDisconnect(revision: string): void;
     catalogVerify(): void;
-    modelSelect(id: string, selected: boolean): void;
-    modelsSave(enabled: boolean): void;
-    providerDisable(): void;
+    modelEnabledUpdate(id: string, enabled: boolean): void;
+    providerEnabledUpdate(enabled: boolean): void;
 }
 
 export const happyGatewayGeminiEmpty: HappyGatewayGeminiSnapshot = {
     access: "loading",
-    selected: [],
 };
 
 function configRead(value: unknown): HappyGatewayGeminiConfig | undefined {
@@ -64,7 +65,15 @@ function configRead(value: unknown): HappyGatewayGeminiConfig | undefined {
         keyPresent,
         enabled,
         modelIds,
-        candidates: candidates.map(({ id, name }) => ({ id, name })),
+        candidates: candidates.map(({ id, name, contextWindow }) => ({
+            id,
+            name,
+            ...(typeof contextWindow === "number" &&
+            Number.isSafeInteger(contextWindow) &&
+            contextWindow > 0
+                ? { contextWindow }
+                : {}),
+        })),
         refreshedAt,
     };
 }
@@ -92,7 +101,7 @@ export function happyGatewayGeminiStoreCreate(request: typeof fetch): HappyGatew
             });
             if (pending.signal.aborted) return;
             if ([401, 403, 404].includes(response.status)) {
-                if (state.access !== "absent") set({ access: "absent", selected: [] });
+                if (state.access !== "absent") set({ access: "absent" });
                 return;
             }
             if (!response.ok) throw new Error();
@@ -105,16 +114,15 @@ export function happyGatewayGeminiStoreCreate(request: typeof fetch): HappyGatew
                 set({
                     access: "ready",
                     config,
-                    selected: config.modelIds,
                     ...(changed
                         ? {
-                              error: "Gemini settings changed. Review the model selection before saving.",
+                              error: "Gemini settings changed. Check the current switches before trying again.",
                           }
                         : {}),
                 });
             } else if (state.stale) {
                 const { stale: _, ...previous } = state;
-                set({ ...previous, config, selected: config.modelIds });
+                set({ ...previous, config });
             }
         } catch {
             if (!pending.signal.aborted && !state.stale)
@@ -125,7 +133,7 @@ export function happyGatewayGeminiStoreCreate(request: typeof fetch): HappyGatew
                               stale: true,
                               error: "Gemini settings couldn’t be checked. Waiting for the server.",
                           }
-                        : { access: "unavailable", selected: [] },
+                        : { access: "unavailable" },
                 );
         } finally {
             if (read === pending) read = undefined;
@@ -165,7 +173,7 @@ export function happyGatewayGeminiStoreCreate(request: typeof fetch): HappyGatew
                 ...(body === undefined ? {} : { body: JSON.stringify(body) }),
             });
             if ([401, 403, 404].includes(response.status)) {
-                set({ access: "absent", selected: [] });
+                set({ access: "absent" });
                 return;
             }
             if (!response.ok) {
@@ -178,8 +186,7 @@ export function happyGatewayGeminiStoreCreate(request: typeof fetch): HappyGatew
                     set({
                         ...previous,
                         stale: true,
-                        selected: config.modelIds,
-                        error: "Gemini settings changed. Review the model selection before saving.",
+                        error: "Gemini settings changed. Your change wasn’t applied. Check the current switches before trying again.",
                     });
                     void load();
                     return;
@@ -189,19 +196,22 @@ export function happyGatewayGeminiStoreCreate(request: typeof fetch): HappyGatew
                         ? "Gemini settings could not be restored. Ask an administrator to check the server."
                         : code === "apply_rolled_back"
                           ? "The server could not apply this change. The previous settings were restored."
-                          : response.status === 429 || code === "busy"
-                            ? "Gemini is busy. Try again shortly."
-                            : busy === "key"
-                              ? "The Gemini key could not be verified or saved."
-                              : busy === "verify"
-                                ? "Gemini verification failed. The displayed models are from the last successful check."
-                                : "The Gemini change could not be saved.";
-                set({ ...previous, error });
+                          : response.status === 429 && busy === "models"
+                            ? "Gemini is still applying a recent change. This switch wasn’t saved. Wait a few seconds, then try again."
+                            : response.status === 429 || code === "busy"
+                              ? "Gemini is busy. Try again shortly."
+                              : busy === "key"
+                                ? "The Gemini key could not be verified or saved."
+                                : busy === "verify"
+                                  ? "Gemini verification failed. The displayed models are from the last successful check."
+                                  : "The Gemini change could not be saved.";
+                set({ ...previous, error, ...(code === "rollback_failed" ? { stale: true } : {}) });
+                if (code === "rollback_failed") void load();
                 return;
             }
             const next = configRead(await response.json());
             if (!next) throw new Error();
-            set({ access: "ready", config: next, selected: next.modelIds });
+            set({ access: "ready", config: next });
         } catch {
             set({
                 ...previous,
@@ -234,40 +244,33 @@ export function happyGatewayGeminiStoreCreate(request: typeof fetch): HappyGatew
         keySave: (secret) => {
             if (secret.trim()) void write("key", "/credentials", "PUT", { secret: secret.trim() });
         },
-        keyDisconnect: () => {
-            if (state.config?.keyPresent) void write("disconnect", "/credentials", "DELETE");
+        keyDisconnect: (revision) => {
+            if (state.config?.keyPresent && state.config.revision === revision)
+                void write("disconnect", "/credentials", "DELETE");
         },
         catalogVerify: () => {
             if (state.config?.keyPresent) void write("verify", "/refresh", "POST");
         },
-        modelSelect(id, selected) {
-            if (
-                state.busy ||
-                state.stale ||
-                !state.config?.candidates.some((model) => model.id === id)
-            )
-                return;
-            const next = new Set(state.selected);
-            if (selected) next.add(id);
-            else next.delete(id);
-            set({ ...state, selected: [...next] });
-        },
-        modelsSave(enabled) {
+        modelEnabledUpdate(id, enabled) {
             const config = state.config;
             if (!config?.keyPresent) return;
-            const modelIds = state.selected.filter((id) =>
-                config.candidates.some((model) => model.id === id),
-            );
-            if (!enabled || modelIds.length > 0)
-                void write("models", "/models", "PUT", { enabled, modelIds });
+            if (config.modelIds.includes(id) === enabled) return;
+            if (enabled && !config.candidates.some((model) => model.id === id)) return;
+            const modelIds = enabled
+                ? [...config.modelIds, id]
+                : config.modelIds.filter((saved) => saved !== id);
+            // Turning off the last running model requires explicit disconnect confirmation.
+            if (config.enabled && modelIds.length === 0) return;
+            void write("models", "/models", "PUT", {
+                enabled: modelIds.length > 0,
+                modelIds,
+            });
         },
-        providerDisable() {
+        providerEnabledUpdate(enabled) {
             const config = state.config;
-            if (config?.enabled)
-                void write("models", "/models", "PUT", {
-                    enabled: false,
-                    modelIds: config.modelIds,
-                });
+            if (!config?.keyPresent || config.enabled || !enabled || config.modelIds.length === 0)
+                return;
+            void write("models", "/models", "PUT", { enabled: true, modelIds: config.modelIds });
         },
     };
 }

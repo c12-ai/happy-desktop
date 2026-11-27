@@ -2,13 +2,18 @@ import { useState } from "react";
 import { Banner } from "../../Banner";
 import { Box } from "../../Box";
 import { Button } from "../../Button";
-import { Checkbox } from "../../Checkbox";
 import { ConfirmPopover } from "../../ConfirmPopover";
 import { IconTile } from "../../IconTile";
 import { Spinner } from "../../Spinner";
+import { Switch } from "../../Switch";
 import { TextField } from "../../TextField";
 import { HappyAgentSettingsSection } from "./HappyAgentSettingsShell";
 import { HappyAgentSettingsStatus } from "./HappyAgentSettingsStatus";
+import {
+    HappyAgentProviderModelToggle,
+    modelMeta,
+    type HappyAgentProviderModelRow,
+} from "./HappyAgentProviderSettings";
 
 export interface HappyGatewayGeminiSettingsProps {
     readonly loading?: boolean;
@@ -17,37 +22,35 @@ export interface HappyGatewayGeminiSettingsProps {
     readonly busy?: boolean;
     readonly error?: string;
     readonly config?: {
+        readonly revision: string;
         readonly keyPresent: boolean;
         readonly enabled: boolean;
         readonly modelIds: readonly string[];
-        readonly candidates: readonly { readonly id: string; readonly name: string }[];
+        readonly candidates: readonly {
+            readonly id: string;
+            readonly name: string;
+            readonly contextWindow?: number;
+        }[];
         readonly refreshedAt: string | null;
     };
-    readonly selected: readonly string[];
+    readonly catalogModels?: readonly HappyAgentProviderModelRow[];
     readonly onKeySave: (key: string) => void;
-    readonly onDisconnect: () => void;
+    readonly onDisconnect: (revision: string) => void;
     readonly onVerify: () => void;
-    readonly onModelSelect: (id: string, selected: boolean) => void;
-    readonly onModelsSave: (enabled: boolean) => void;
-    readonly onDisable: () => void;
+    readonly onModelEnabledChange: (id: string, enabled: boolean) => void;
+    readonly onProviderEnabledChange: (enabled: boolean) => void;
 }
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 export function HappyGatewayGeminiSettings(props: HappyGatewayGeminiSettingsProps) {
     const [keyDraft, setKeyDraft] = useState<string | undefined>();
-    const [confirming, setConfirming] = useState(false);
+    const [disconnectRevision, setDisconnectRevision] = useState<string>();
     const config = props.config;
     const locked = props.locked || props.busy;
-    const eligibleSelection = props.selected.filter((id) =>
-        config?.candidates.some((row) => row.id === id),
-    );
-    const changed =
-        eligibleSelection.length !== config?.modelIds.length ||
-        eligibleSelection.some((id) => !config.modelIds.includes(id));
-    const unavailableModels = config?.modelIds.some(
-        (id) => !config.candidates.some((row) => row.id === id),
-    );
+    const candidates = new Map(config?.candidates.map((row) => [row.id, row]));
+    const catalog = new Map(props.catalogModels?.map((row) => [row.modelId, row]));
+    const modelIds = [...new Set([...candidates.keys(), ...(config?.modelIds ?? [])])];
     const keySubmit = () => {
         if (locked || !keyDraft?.trim()) return;
         setKeyDraft(undefined);
@@ -66,7 +69,8 @@ export function HappyGatewayGeminiSettings(props: HappyGatewayGeminiSettingsProp
                         <Box className="happy-agent-provider__naming">
                             <span className="happy-agent-provider__name">Google Gemini</span>
                             <span className="happy-agent-provider__meta">
-                                Only saved, enabled models appear in chat.
+                                Selecting a model enables Gemini and makes that model available in
+                                chat.
                             </span>
                         </Box>
                     </Box>
@@ -83,6 +87,38 @@ export function HappyGatewayGeminiSettings(props: HappyGatewayGeminiSettingsProp
                         />
                     ) : null}
                     {props.loading || props.busy ? <Spinner size={16} /> : null}
+                    {config ? (
+                        <Box className="happy-agent-provider__account">
+                            <Switch
+                                aria-label="Google Gemini enabled"
+                                checked={config.enabled}
+                                disabled={
+                                    locked ||
+                                    !config.keyPresent ||
+                                    (!config.enabled && config.modelIds.length === 0)
+                                }
+                                onChange={(enabled) => {
+                                    if (enabled) props.onProviderEnabledChange(true);
+                                    else setDisconnectRevision(config.revision);
+                                }}
+                            />
+                            {disconnectRevision === config.revision ? (
+                                <Box className="happy-agent-provider__account-confirm">
+                                    <ConfirmPopover
+                                        title="Disconnect Google Gemini?"
+                                        message="This deletes the stored API key and clears the model selection. Workbench cannot recover the key. The inference runtime may restart."
+                                        confirmLabel="Delete key and disconnect"
+                                        tone="danger"
+                                        onCancel={() => setDisconnectRevision(undefined)}
+                                        onConfirm={() => {
+                                            setDisconnectRevision(undefined);
+                                            if (!locked) props.onDisconnect(disconnectRevision);
+                                        }}
+                                    />
+                                </Box>
+                            ) : null}
+                        </Box>
+                    ) : null}
                 </header>
                 {props.unavailable ? (
                     <Banner tone="warning" title="Gemini settings unavailable">
@@ -93,6 +129,54 @@ export function HappyGatewayGeminiSettings(props: HappyGatewayGeminiSettingsProp
                     <Banner tone="warning" title="Google Gemini">
                         {props.error}
                     </Banner>
+                ) : null}
+                {config?.keyPresent ? (
+                    <Box className="happy-agent-provider__models">
+                        {modelIds.map((id) => {
+                            const model = catalog.get(id);
+                            const candidate = candidates.get(id);
+                            const checked = config.modelIds.includes(id);
+                            const description = modelMeta({
+                                modelId: id,
+                                contextWindow: candidate?.contextWindow ?? model?.contextWindow,
+                                efforts: model?.efforts ?? [],
+                            });
+                            const hint = !candidates.has(id)
+                                ? "Not in latest discovery"
+                                : undefined;
+                            const last = config.enabled && checked && config.modelIds.length === 1;
+                            return (
+                                <HappyAgentProviderModelToggle
+                                    key={id}
+                                    name={candidate?.name ?? model?.name ?? id}
+                                    description={[
+                                        description,
+                                        hint,
+                                        last
+                                            ? "Turning off this model disconnects Gemini and deletes its key"
+                                            : undefined,
+                                    ]
+                                        .filter(Boolean)
+                                        .join(" — ")}
+                                    checked={checked}
+                                    disabled={locked}
+                                    onChange={(enabled) => {
+                                        if (last && !enabled)
+                                            setDisconnectRevision(config.revision);
+                                        else props.onModelEnabledChange(id, enabled);
+                                    }}
+                                />
+                            );
+                        })}
+                        {modelIds.length === 0 ? (
+                            <span
+                                className="happy-agent-provider__models-empty"
+                                data-happy-desktop-ui="happy-agent-provider-models-empty"
+                            >
+                                No eligible models were discovered.
+                            </span>
+                        ) : null}
+                    </Box>
                 ) : null}
                 {config ? (
                     <Box className="happy-agent-provider__keys">
@@ -118,27 +202,12 @@ export function HappyGatewayGeminiSettings(props: HappyGatewayGeminiSettingsProp
                                     <Box className="happy-agent-provider__account">
                                         <Button
                                             disabled={locked}
-                                            onClick={() => setConfirming(!confirming)}
+                                            onClick={() => setDisconnectRevision(config.revision)}
                                             size="small"
                                             variant="ghost"
                                         >
                                             Disconnect
                                         </Button>
-                                        {confirming ? (
-                                            <Box className="happy-agent-provider__account-confirm">
-                                                <ConfirmPopover
-                                                    title="Disconnect Google Gemini?"
-                                                    message="This removes the stored key and model selection. The inference runtime may restart."
-                                                    confirmLabel="Disconnect"
-                                                    tone="danger"
-                                                    onCancel={() => setConfirming(false)}
-                                                    onConfirm={() => {
-                                                        setConfirming(false);
-                                                        if (!locked) props.onDisconnect();
-                                                    }}
-                                                />
-                                            </Box>
-                                        ) : null}
                                     </Box>
                                 </>
                             ) : null}
@@ -180,60 +249,6 @@ export function HappyGatewayGeminiSettings(props: HappyGatewayGeminiSettingsProp
                                         ? "Models have not been verified."
                                         : `Last verified ${dateFormat.format(new Date(config.refreshedAt))}.`}
                                 </span>
-                                {unavailableModels ? (
-                                    <Banner
-                                        tone="warning"
-                                        title="Some saved models were not discovered"
-                                    >
-                                        Review the remaining models and save a new selection.
-                                    </Banner>
-                                ) : null}
-                                {config.candidates.length === 0 ? (
-                                    <span className="happy-agent-provider__keys-note">
-                                        No eligible models were discovered.
-                                    </span>
-                                ) : null}
-                                {config.candidates.map(({ id, name }) => (
-                                    <Checkbox
-                                        key={id}
-                                        label={name === id ? id : `${name} · ${id}`}
-                                        checked={props.selected.includes(id)}
-                                        disabled={locked}
-                                        onChange={(selected) => props.onModelSelect(id, selected)}
-                                    />
-                                ))}
-                                <Box className="happy-agent-provider__add">
-                                    <Button
-                                        disabled={
-                                            locked ||
-                                            !changed ||
-                                            (config.enabled && !eligibleSelection.length)
-                                        }
-                                        onClick={() => props.onModelsSave(config.enabled)}
-                                        size="small"
-                                        variant="secondary"
-                                    >
-                                        Save models
-                                    </Button>
-                                    <Button
-                                        disabled={
-                                            locked || (!config.enabled && !eligibleSelection.length)
-                                        }
-                                        onClick={() =>
-                                            config.enabled
-                                                ? props.onDisable()
-                                                : props.onModelsSave(true)
-                                        }
-                                        size="small"
-                                        variant="secondary"
-                                    >
-                                        {config.enabled
-                                            ? "Disable"
-                                            : changed
-                                              ? "Save and enable"
-                                              : "Enable"}
-                                    </Button>
-                                </Box>
                             </>
                         ) : null}
                     </Box>

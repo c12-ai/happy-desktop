@@ -1635,19 +1635,18 @@ export function HappyAgentSettingsBlueprintPage() {
                 >
                     <HappyGatewayGeminiSettings
                         config={{
+                            revision: "blueprint",
                             keyPresent: true,
                             enabled: false,
                             modelIds: [],
                             candidates: [{ id: "gemini-fixture", name: "Gemini fixture" }],
                             refreshedAt: "2026-01-01T12:00:00Z",
                         }}
-                        selected={["gemini-fixture"]}
                         onKeySave={noop}
                         onDisconnect={noop}
                         onVerify={noop}
-                        onModelSelect={noop}
-                        onModelsSave={noop}
-                        onDisable={noop}
+                        onModelEnabledChange={noop}
+                        onProviderEnabledChange={noop}
                     />
                 </HappyAgentSettingsShell>
             </FullScreenSpecimen>
