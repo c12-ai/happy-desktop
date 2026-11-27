@@ -1112,6 +1112,10 @@ export {
     type HappyAgentProviderStatus,
 } from "./pages/settings/HappyAgentProviderSettings";
 export {
+    HappyGatewayGeminiSettings,
+    type HappyGatewayGeminiSettingsProps,
+} from "./pages/settings/HappyGatewayGeminiSettings";
+export {
     HappyAgentCustomProviderDialog,
     type HappyAgentCustomProviderDialogProps,
     type HappyAgentCustomProviderModelValues,

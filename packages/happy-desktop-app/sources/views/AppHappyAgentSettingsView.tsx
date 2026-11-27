@@ -57,6 +57,9 @@ import {
     happyAgentProviderUsageStoreNoop,
     type HappyAgentProviderUsageStore,
     happyAgentProvidersStoreNoop,
+    happyGatewayGeminiEmpty,
+    HAPPY_GATEWAY_GEMINI_PROVIDER_ID,
+    type HappyGatewayGeminiStore,
     happyAgentCredentialImportStoreNoop,
     happyAgentCloudProvidersStoreNoop,
     happyAgentRepositoriesStoreNoop,
@@ -104,6 +107,7 @@ import {
     HappyAgentCustomProviderDialog,
     type HappyAgentCustomProviderDialogProps,
     HappyAgentProviderSettings,
+    HappyGatewayGeminiSettings,
     HappyAgentCredentialImport,
     HappyAgentAiProviders,
     type HappyAgentAiProviderConnectionRow,
@@ -470,6 +474,7 @@ const usageAnalyticsAbsent: UsageAnalyticsStore = {
 /** The cloud web app's session at the edge: its server, switching, and signing out. */
 export interface AppCloudWebSession {
     readonly serverName: string;
+    readonly gemini?: HappyGatewayGeminiStore;
     onServerSwitch(): void;
     onSignOut(): void;
 }
@@ -802,6 +807,12 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
     const providersStore =
         (section === "providers" || stateOpen ? host?.session?.providers : undefined) ??
         happyAgentProvidersStoreNoop;
+    const geminiStore = section === "providers" ? props.cloudWebSession?.gemini : undefined;
+    const gemini = useSyncExternalStore(
+        geminiStore?.subscribe ?? geminiUnsubscribe,
+        geminiStore?.get ?? geminiEmpty,
+        geminiStore?.get ?? geminiEmpty,
+    );
     const providers = useSyncExternalStore(
         providersStore.subscribe,
         providersStore.get,
@@ -1472,6 +1483,23 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
                 />
             ) : section === "providers" ? (
                 <>
+                    {geminiStore && gemini.access !== "absent" ? (
+                        <HappyGatewayGeminiSettings
+                            loading={gemini.access === "loading"}
+                            unavailable={gemini.access === "unavailable"}
+                            locked={gemini.stale === true || unavailable !== undefined}
+                            busy={gemini.busy !== undefined}
+                            {...(gemini.error === undefined ? {} : { error: gemini.error })}
+                            {...(gemini.config === undefined ? {} : { config: gemini.config })}
+                            selected={gemini.selected}
+                            onKeySave={geminiStore.keySave}
+                            onDisconnect={geminiStore.keyDisconnect}
+                            onVerify={geminiStore.catalogVerify}
+                            onModelSelect={geminiStore.modelSelect}
+                            onModelsSave={geminiStore.modelsSave}
+                            onDisable={geminiStore.providerDisable}
+                        />
+                    ) : null}
                     {cloudProvidersStore ? (
                         <HappyAgentAiProviders
                             connections={cloudProviders.connections.map(cloudConnectionRow)}
@@ -1576,7 +1604,12 @@ export function AppHappyAgentSettingsView(props: AppHappyAgentSettingsViewProps)
                               }
                             : {})}
                         providers={providerRows(
-                            providers.providers,
+                            props.cloudWebSession?.gemini
+                                ? providers.providers.filter(
+                                      (provider) =>
+                                          provider.id !== HAPPY_GATEWAY_GEMINI_PROVIDER_ID,
+                                  )
+                                : providers.providers,
                             settings,
                             selection,
                             cloudProvidersStore !== undefined,
@@ -2210,6 +2243,9 @@ function documentLoading(
         store !== undefined && snapshot.stored.type !== "ready" && snapshot.stored.type !== "error"
     );
 }
+
+const geminiUnsubscribe = () => () => undefined;
+const geminiEmpty = () => happyGatewayGeminiEmpty;
 
 /**
  * Happy Cloud's keys and sign-ins are listed and added under AI providers, so
