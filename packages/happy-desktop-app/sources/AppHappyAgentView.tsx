@@ -806,6 +806,8 @@ export interface AppHappyAgentSession {
     readonly instructions?: HappyAgentInstructionsStore;
     /** This Happy Agent's machine-wide permission-review policy. */
     readonly securityPolicy?: HappyAgentSecurityPolicyStore;
+    /** A Gateway connection uses daemon secrets even in the Cloud web shell. */
+    readonly daemonSecrets?: true;
     /** This Happy Agent's global write-only environment bundles. */
     readonly secrets?: () => HappyAgentSecretsStore;
     /** Happy Cloud's typed secret catalog; undefined on a Happy Agent daemon. */
