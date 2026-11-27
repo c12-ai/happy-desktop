@@ -9,6 +9,7 @@ import {
     HappyAgentInstructionsSettings,
     HappyAgentMobileSettings,
     HappyAgentProviderSettings,
+    HappyGatewayGeminiSettings,
     HappyAgentCustomProviderDialog,
     HappyAgentCredentialImport,
     HappyAgentAiProviders,
@@ -1617,6 +1618,36 @@ export function HappyAgentSettingsBlueprintPage() {
                         onModelEnabledChange={noop}
                         onProviderEnabledChange={noop}
                         providers={providers}
+                    />
+                </HappyAgentSettingsShell>
+            </FullScreenSpecimen>
+            <FullScreenSpecimen
+                label="Inference — Google Gemini"
+                number="03a"
+                detail="Gateway credential status, explicit model selection, and verification"
+            >
+                <HappyAgentSettingsShell
+                    activeCategoryId="providers"
+                    categories={categories}
+                    onCategorySelect={noop}
+                    onClose={noop}
+                    title="Inference"
+                >
+                    <HappyGatewayGeminiSettings
+                        config={{
+                            keyPresent: true,
+                            enabled: false,
+                            modelIds: [],
+                            candidates: [{ id: "gemini-fixture", name: "Gemini fixture" }],
+                            refreshedAt: "2026-01-01T12:00:00Z",
+                        }}
+                        selected={["gemini-fixture"]}
+                        onKeySave={noop}
+                        onDisconnect={noop}
+                        onVerify={noop}
+                        onModelSelect={noop}
+                        onModelsSave={noop}
+                        onDisable={noop}
                     />
                 </HappyAgentSettingsShell>
             </FullScreenSpecimen>

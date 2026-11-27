@@ -11,6 +11,7 @@ import {
 import { useSyncExternalStore, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
+import { happyGatewayGeminiStoreCreate } from "happy-desktop-state";
 import {
     DesktopStartupScreen,
     appMobileRelayFromLink,
@@ -1345,6 +1346,13 @@ const browserLocal =
 /** The cloud web app's own server, switching and signing out, for Settings. */
 const cloudWebSession = cloudWeb
     ? {
+          ...(cloudWebOrigins.sameOrigin === true
+              ? {
+                    gemini: happyGatewayGeminiStoreCreate((input, init) =>
+                        window.fetch(input, init),
+                    ),
+                }
+              : {}),
           serverName: window.location.hostname.split(".")[0] ?? window.location.hostname,
           onServerSwitch: () => window.location.assign(CLOUD_WEB_PICKER_URL),
           onSignOut: () => void cloudWebSignOut(),
