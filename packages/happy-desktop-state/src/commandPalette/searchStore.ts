@@ -15,6 +15,7 @@ import type {
 } from "../surfaces/surfaceTypes.js";
 import type { HappyAgentVaultItemId } from "../surfaces/surfaceVaultTypes.js";
 import type { HappyAgentSearchHit, HappyAgentSearchSnapshot } from "./searchTypes.js";
+import { happyAgentHiddenHas } from "../happyAgent/happyAgentHiddenIds.js";
 
 export interface HappyAgentSearchStore {
     get(): HappyAgentSearchSnapshot;
@@ -43,6 +44,12 @@ const LIMIT = 20;
 const OFF: HappyAgentSearchSnapshot = { status: "off" };
 
 /** One wire result as its product variant; a person takes their photo from the team. */
+/** Whether a hit is in, or is, an agent or workspace the server hides from this reader. */
+function searchResultHidden(result: SearchResult): boolean {
+    const fields = result as unknown as Record<string, unknown>;
+    return happyAgentHiddenHas(fields.agentId, fields.workspaceId, fields.botId);
+}
+
 function hitProject(
     result: SearchResult,
     photos: ReadonlyMap<string, string | undefined>,
@@ -223,7 +230,9 @@ export function happyAgentSearchStoreCreate(deps: HappyAgentSearchDeps): HappyAg
                 set({
                     status: "ready",
                     query,
-                    hits: response.results.map((result) => hitProject(result, photos)),
+                    hits: response.results
+                        .filter((result) => !searchResultHidden(result))
+                        .map((result) => hitProject(result, photos)),
                     partial: response.partial,
                 });
             },

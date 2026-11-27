@@ -178,7 +178,12 @@ import {
     happyAgentMembersStoreCreate,
     type HappyAgentMembersStore,
 } from "./happyAgentMembersStore.js";
+import {
+    happyGatewayMembersStoreCreate,
+    type HappyGatewayMembersStore,
+} from "./happyGatewayMembersStore.js";
 import type { HappyCloudRequest } from "./happyAgentProviderCredentials.js";
+import { happyAgentHiddenPoll } from "./happyAgentHiddenIds.js";
 import {
     happyAgentUserProfileStoreCreate,
     type HappyAgentUserProfileStore,
@@ -348,6 +353,12 @@ export interface HappyAgentWorkspaceClient {
      * invites. Undefined anywhere but a Happy Cloud server.
      */
     members(): HappyAgentMembersStore | undefined;
+    /**
+     * Settings › Members on a server behind Happy Gateway: who may use it and,
+     * for its owner, invitations and removals. Undefined where the connection
+     * has no route of its own to ask; its snapshot says when no gateway answers.
+     */
+    gatewayMembers(): HappyGatewayMembersStore | undefined;
     /**
      * One member's profile on Happy Cloud: who they are, what they used, and
      * their latest tasks. Materialized per member on first access and kept;
@@ -791,6 +802,8 @@ export function happyAgentWorkspaceClientCreate(
             : {}),
     });
     const memory = happyAgentWorkspaceMemoryStoreCreate(deps.workspaceMemoryPersistence);
+    // What a server behind Happy Gateway keeps out of this reader's view (see happyAgentHiddenIds.ts).
+    const hiddenPollStop = deps.cloudRequest ? happyAgentHiddenPoll(deps.cloudRequest) : undefined;
     // Happy Cloud's own routes are present exactly on a Happy Cloud connection.
     const attachmentPlacement = happyAgentAttachmentPlacementCreate(
         deps.hostServices,
@@ -834,6 +847,7 @@ export function happyAgentWorkspaceClientCreate(
     let previewsStore: HappyAgentPreviewsStore | undefined;
     let dailyUsageStore: HappyAgentDailyUsageStore | undefined;
     let membersStore: HappyAgentMembersStore | undefined;
+    let gatewayMembersStore: HappyGatewayMembersStore | undefined;
     const userProfileStores = new Map<string, HappyAgentUserProfileStore>();
     const checkoutStores = new Map<string, HappyAgentCheckoutsStore>();
     let voiceSettingsStore: HappyAgentVoiceSettingsStore | undefined;
@@ -1400,6 +1414,14 @@ export function happyAgentWorkspaceClientCreate(
             });
             return membersStore;
         },
+        gatewayMembers() {
+            if (disposed) throw new Error("The Happy Agent client is disposed.");
+            // A Happy Cloud server has members of its own; a gateway sits only in front of a Happy Agent.
+            const request = deps.cloudServer ? undefined : deps.cloudRequest;
+            if (!request) return undefined;
+            gatewayMembersStore ??= happyGatewayMembersStoreCreate({ request });
+            return gatewayMembersStore;
+        },
         userProfile(userId) {
             if (disposed) throw new Error("The Happy Agent client is disposed.");
             const request = deps.cloudRequest;
@@ -1617,6 +1639,7 @@ export function happyAgentWorkspaceClientCreate(
         [Symbol.dispose]() {
             if (disposed) return;
             disposed = true;
+            hiddenPollStop?.();
             models[Symbol.dispose]();
             sessionListStore?.[Symbol.dispose]();
             sessionListStore = undefined;
@@ -1664,6 +1687,8 @@ export function happyAgentWorkspaceClientCreate(
             dailyUsageStore = undefined;
             membersStore?.[Symbol.dispose]();
             membersStore = undefined;
+            gatewayMembersStore?.[Symbol.dispose]();
+            gatewayMembersStore = undefined;
             for (const store of userProfileStores.values()) store[Symbol.dispose]();
             userProfileStores.clear();
             for (const store of checkoutStores.values()) store[Symbol.dispose]();

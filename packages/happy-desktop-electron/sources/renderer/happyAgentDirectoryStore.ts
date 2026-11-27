@@ -755,13 +755,16 @@ export function happyAgentDirectoryStoreCreate(
             // app is served by, can be a team that needs a profile.
             memberProfileRequired:
                 happyAgent.entry.id !== LOCAL_HAPPY_AGENT_ID || deps.localHappyCloud === true,
-            host: happyAgent.entry.remoteId
-                ? {
-                      projectSource: "repository",
-                      applicationMenuOpen: host.applicationMenuOpen,
-                      directoryPick: async () => undefined,
-                  }
-                : host,
+            // A server's folders are not this computer's, and the server the
+            // web app is served by is no exception: a project there is cloned.
+            host:
+                happyAgent.entry.remoteId || deps.localHappyCloud === true
+                    ? {
+                          projectSource: "repository",
+                          applicationMenuOpen: host.applicationMenuOpen,
+                          directoryPick: async () => undefined,
+                      }
+                    : host,
             happyAgentId: happyAgent.entry.id,
             client,
             hostServicesUrl,

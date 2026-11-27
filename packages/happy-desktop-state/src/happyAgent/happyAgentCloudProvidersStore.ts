@@ -43,6 +43,7 @@ export interface HappyAgentCloudProviderAdd {
      * - `done`: added; `done` says what.
      */
     readonly phase: "idle" | "busy" | "waiting" | "done";
+    readonly progress?: string;
     readonly signIn?: {
         readonly url: string;
         /** The code to enter on the vendor's device page. */
@@ -84,6 +85,11 @@ export interface HappyAgentCloudProvidersSnapshot {
     readonly privateAllowed: boolean;
     /** Whether the reader may add for the whole team. */
     readonly teamAllowed: boolean;
+    /**
+     * True once the server has said what the reader may do. Until then, and on
+     * a server that does not say, `teamAllowed` is not yet an answer.
+     */
+    readonly permissionsKnown: boolean;
     /** The subscriptions this server signs in to now. */
     readonly signIns: ReadonlySet<HappyAgentCloudSignInCli>;
     /** Whether this server takes a Claude setup token. */
@@ -176,6 +182,7 @@ export function happyAgentCloudProvidersStoreCreate(
         connections: [],
         privateAllowed: true,
         teamAllowed: false,
+        permissionsKnown: false,
         signIns: NO_SIGN_INS,
         setupToken: false,
         credentialsSaving: NO_SAVING,
@@ -207,7 +214,7 @@ export function happyAgentCloudProvidersStoreCreate(
     };
     /** The add dialog without what the last attempt left behind. */
     const addFresh = (add: HappyAgentCloudProviderAdd): HappyAgentCloudProviderAdd => {
-        const { error: _error, signIn: _signIn, done: _done, ...rest } = add;
+        const { error: _error, signIn: _signIn, done: _done, progress: _progress, ...rest } = add;
         return { ...rest, phase: "idle" };
     };
 
@@ -258,6 +265,7 @@ export function happyAgentCloudProvidersStoreCreate(
                     {
                         privateAllowed: granted.has("providers.own"),
                         teamAllowed: granted.has("providers.manage"),
+                        permissionsKnown: true,
                     },
                     false,
                 );
@@ -395,6 +403,7 @@ export function happyAgentCloudProvidersStoreCreate(
         addSet({
             ...add,
             phase: authorization ? "waiting" : "busy",
+            progress: operation.message,
             ...(authorization
                 ? {
                       signIn: {
@@ -776,6 +785,7 @@ const INERT_SNAPSHOT: HappyAgentCloudProvidersSnapshot = {
     connections: [],
     privateAllowed: false,
     teamAllowed: false,
+    permissionsKnown: false,
     signIns: NO_SIGN_INS,
     setupToken: false,
     credentialsSaving: NO_SAVING,

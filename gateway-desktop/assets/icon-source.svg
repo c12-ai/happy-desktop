@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+    <!-- Placeholder mark for Karis Workbench: replace this file (any 1024x1024 artwork) and rebuild. -->
+    <defs>
+        <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#3b7bf0" />
+            <stop offset="1" stop-color="#1f3f9e" />
+        </linearGradient>
+    </defs>
+    <rect width="1024" height="1024" fill="url(#ground)" />
+    <g fill="#ffffff">
+        <rect x="300" y="232" width="128" height="560" rx="20" />
+        <polygon points="428,500 640,232 790,232 540,540" />
+        <polygon points="484,470 600,420 800,792 650,792" />
+    </g>
+</svg>

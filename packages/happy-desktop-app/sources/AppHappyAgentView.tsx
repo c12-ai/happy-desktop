@@ -21,7 +21,9 @@ import {
     conversationFileChanges,
     conversationFileDiff,
     gptLiveStoreNoop,
+    happyAgentAssistantBot,
     happyAgentBotSubtasks,
+    happyAgentHiddenIds,
     happyExternalLinkFormat,
     happyShareLinkFormat,
     isHappyUrl,
@@ -736,6 +738,9 @@ export interface AppHappyAgentSession {
     readonly providers?: HappyAgentProvidersStore;
     /** Settings › Members, on a Happy Cloud server; absent or undefined elsewhere. */
     readonly members?: () => import("happy-desktop-state").HappyAgentMembersStore | undefined;
+    readonly gatewayMembers?: () =>
+        | import("happy-desktop-state").HappyGatewayMembersStore
+        | undefined;
     /** One member's profile, on Happy Cloud; absent or undefined elsewhere. */
     readonly userProfile?: (
         userId: string,
@@ -3380,9 +3385,13 @@ function happyAgentEmptyDescription(happyAgent: AppHappyAgentEntry): string {
  * set one up there.
  */
 function happyAgentProjectsEmptyDescription(happyAgent: AppHappyAgentEntry): string {
-    if (happyAgent.serverUrl === undefined) return "Choose a repository folder on this Mac.";
+    if (happyAgent.serverUrl === undefined && happyAgent.happyCloud !== true)
+        return "Choose a repository folder on this Mac.";
     const chief = happyAgent.bots.find((bot) => bot.systemKey === "chief_of_staff");
-    return `Add a repository folder on this server, or ask ${chief?.name ?? "Chief of Staff"} to set one up.`;
+    // A member of a server behind Happy Gateway sees no Chief of Staff: setting one up is the Admin's.
+    if (chief === undefined && happyAgentHiddenIds().teamAssistantBotId !== null)
+        return "Clone a GitHub repository onto this server, or ask the Admin to set one up.";
+    return `Clone a GitHub repository onto this server, or ask ${chief?.name ?? "Chief of Staff"} to set one up.`;
 }
 
 /**
@@ -9799,6 +9808,21 @@ function HappyAgentFilePreview(props: {
 }
 
 /**
+ * What the reader has sent in a conversation, oldest first, for Up and Down in
+ * its composer: their own messages with words, as far back as the transcript
+ * has been read. A message of attachments alone has nothing to bring back.
+ */
+function sentHistoryOf(entries: readonly ConversationEntry[], viewerId: string): string[] {
+    return entries.flatMap((entry) =>
+        entry.kind === "message" &&
+        entry.message.sender?.id === viewerId &&
+        entry.message.text.trim() !== ""
+            ? [entry.message.text]
+            : [],
+    );
+}
+
+/**
  * A conversation's dock, reading its composer's draft itself.
  *
  * This is the one subscription a keystroke reaches. The surface around it reads
@@ -9829,7 +9853,7 @@ function HappyAgentComposerDock(
  */
 /** The Chief of Staff bot's live name, for copy that names it, when this Happy Agent lists one. */
 function chiefOfStaffNameProps(bots: readonly HappyAgentBot[]): { chiefOfStaffName?: string } {
-    const chief = bots.find((bot) => bot.systemKey === "chief_of_staff");
+    const chief = happyAgentAssistantBot(bots);
     return chief ? { chiefOfStaffName: chief.name } : {};
 }
 
@@ -10679,6 +10703,7 @@ function HappyAgentConversationSurface(props: {
                             : []),
                     ]}
                     composerFocusOnType={!composerDisabled && props.focusOnType}
+                    composerSentHistory={sentHistoryOf(conversation.entries, props.viewerId)}
                     // The open conversation is what this composer writes into, so moving
                     // to another one — or landing in the one a new workspace was made
                     // with — puts the caret in the draft. A locked chat has no draft to

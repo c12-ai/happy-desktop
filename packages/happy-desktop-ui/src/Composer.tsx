@@ -322,6 +322,13 @@ export type ComposerProps = {
      * draft, until its text is replaced from outside.
      */
     draftId?: string;
+    /**
+     * What the reader has sent into this draft's conversation, oldest first,
+     * as the composer's value would hold it. Up on the draft's first line
+     * brings back the one before, Down on its last line the one after, and
+     * Down past the newest the draft as it was before.
+     */
+    sentHistory?: readonly string[];
     /** e.g. "Enter to send · @ to hand off to an agent" */
     hint?: string;
     /** Opens a host-owned attachment browser. Takes precedence over the native picker. */
@@ -643,6 +650,21 @@ export function Composer(props: ComposerProps) {
     const historyHeld = useRef(false);
     /* Whether the edit now raising `input` was recorded by its `beforeinput`. */
     const historyRecorded = useRef(false);
+    /*
+     * Set while an input method (Pinyin, Kana, …) composes. Its keys work the
+     * candidate list, not the composer. WebKit sends `compositionend` before
+     * the Enter that committed it, so the flag clears one task later and that
+     * Enter is still the input method's.
+     */
+    const composing = useRef(false);
+    /*
+     * While a sent message is shown in place of the draft: how far back it is
+     * (1 is the newest), the draft it stands in for, and which draft that was.
+     */
+    const recalled = useRef<
+        | { readonly back: number; readonly draft: ComposerDraft; readonly draftId?: string }
+        | undefined
+    >(undefined);
     const historyOf = () => {
         if (historyDraftId.current !== props.draftId) {
             history.reset();
@@ -1052,6 +1074,7 @@ export function Composer(props: ComposerProps) {
         restoreFocusAfterSend.current = true;
         // What was sent is not the draft's to take back.
         historyOf().reset();
+        recalled.current = undefined;
         void props.onSend();
         queueMicrotask(() => {
             const textarea = textareaEl.current;
@@ -1061,6 +1084,9 @@ export function Composer(props: ComposerProps) {
         });
     };
     const onKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+        // 229 is the legacy keyCode some engines report for a key the input
+        // method is processing, before `isComposing` is set.
+        if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) return;
         const historyDirection = historyChordOf(event.nativeEvent);
         if (historyDirection) {
             // Prevented here, the browser runs neither its own Undo nor the
@@ -1171,10 +1197,65 @@ export function Composer(props: ComposerProps) {
             props.onStop();
             return;
         }
+        if (
+            (event.key === "ArrowUp" || event.key === "ArrowDown") &&
+            !event.shiftKey &&
+            !event.altKey &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !commandOpen() &&
+            !mentionOpen() &&
+            recallStep(event.currentTarget, event.key === "ArrowUp" ? 1 : -1)
+        ) {
+            event.preventDefault();
+            return;
+        }
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             send();
         }
+    };
+    /*
+     * Up on the first line and Down on the last, with nothing selected, move
+     * through what the reader sent, the way a shell's history does. Anywhere
+     * else they move the caret, as they always have. Up leaves the caret at the
+     * start and Down at the end, so pressing either again keeps going.
+     */
+    const recallStep = (el: HTMLTextAreaElement, direction: 1 | -1): boolean => {
+        const sent = props.sentHistory ?? [];
+        if (busy || el.selectionStart !== el.selectionEnd) return false;
+        if (recalled.current && recalled.current.draftId !== props.draftId)
+            recalled.current = undefined;
+        const caret = el.selectionStart;
+        const onEdge =
+            direction === 1
+                ? !el.value.slice(0, caret).includes("\n")
+                : !el.value.slice(caret).includes("\n");
+        const back = (recalled.current?.back ?? 0) + direction;
+        if (!onEdge || back < 0 || back > sent.length) return false;
+        const saved = recalled.current?.draft ?? draft;
+        const markdown = back === 0 ? undefined : sent[sent.length - back];
+        const next =
+            markdown === undefined
+                ? saved
+                : mentionsSupported()
+                  ? composerDraftParse(markdown)
+                  : { text: markdown, tags: NO_TAGS };
+        recalled.current =
+            back === 0
+                ? undefined
+                : {
+                      back,
+                      draft: saved,
+                      ...(props.draftId === undefined ? {} : { draftId: props.draftId }),
+                  };
+        // As in an undo step: the value first, so the caret set here stays.
+        el.value = next.text;
+        const at = direction === 1 ? 0 : next.text.length;
+        el.setSelectionRange(at, at);
+        draftCommit(next);
+        rememberSelection();
+        return true;
     };
     const onInput = (event: FormEvent<HTMLTextAreaElement>) => {
         // A new query is a new list; start its highlight at the top.
@@ -1362,6 +1443,14 @@ export function Composer(props: ComposerProps) {
                 props.onFocusChange?.(false);
             }}
             onClick={rememberSelection}
+            onCompositionEnd={() => {
+                setTimeout(() => {
+                    composing.current = false;
+                }, 0);
+            }}
+            onCompositionStart={() => {
+                composing.current = true;
+            }}
             onFocus={() => props.onFocusChange?.(true)}
             onInput={onInput}
             onKeyDown={onKeyDown}

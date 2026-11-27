@@ -1,0 +1,10 @@
+{
+    "name": "karis-workbench",
+    "version": "0.2.0",
+    "private": true,
+    "description": "Karis Workbench: a desktop window onto Happy Gateway servers",
+    "license": "MIT",
+    "author": "c12-ai",
+    "type": "module",
+    "main": "dist/main.js"
+}

@@ -45,6 +45,8 @@ export type ConversationDockProps = {
     composerFocusOnType?: boolean;
     /** What this composer writes into; a change takes the caret. See `Composer.focusKey`. */
     composerFocusKey?: string;
+    /** What the reader sent here, oldest first; see `Composer.sentHistory`. */
+    composerSentHistory?: readonly string[];
     "data-testid"?: string;
     /**
      * Stops the current run; the send control becomes this while running.
@@ -359,6 +361,9 @@ export function ConversationDock(props: ConversationDockProps) {
                         ? {}
                         : { focusKey: props.composerFocusKey })}
                     hint="Enter to send"
+                    {...(props.composerSentHistory === undefined
+                        ? {}
+                        : { sentHistory: props.composerSentHistory })}
                     {...(composer.capabilities.mentions
                         ? {
                               mentions: mentionsOf(composer),

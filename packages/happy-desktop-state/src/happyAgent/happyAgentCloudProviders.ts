@@ -83,6 +83,7 @@ export type HappyAgentCloudSignInCli = "codex" | "claude";
 export interface HappyAgentCloudSignIn {
     readonly id: string;
     readonly status: "running" | "waiting" | "succeeded" | "failed" | "cancelled";
+    readonly message?: string;
     readonly authorization: {
         readonly url: string;
         /** The code to enter on the vendor's device page. */
@@ -238,6 +239,7 @@ function signInRead(value: unknown): HappyAgentCloudSignIn | null {
     return {
         id: operation.id,
         status: operation.status as HappyAgentCloudSignIn["status"],
+        ...(typeof operation.message === "string" ? { message: operation.message } : {}),
         authorization:
             authorization && typeof authorization.url === "string"
                 ? {
@@ -416,6 +418,26 @@ export function happyAgentCloudConnectionsCatalogProject(
     catalog: HappyAgentModelCatalog,
     connections: readonly HappyAgentCloudConnection[],
 ): HappyAgentModelCatalog {
+    // A server may list the accounts behind the machine's own providers, under
+    // the providers' own IDs. Those add nothing to the catalog, which already
+    // has them with their models; a listed account that is not signed in only
+    // marks its provider as not usable yet.
+    if (
+        connections.every((connection) =>
+            catalog.providers.some((provider) => provider.id === connection.id),
+        )
+    )
+        return {
+            ...catalog,
+            providers: catalog.providers.map((provider) =>
+                provider.disabledReason === undefined &&
+                connections.some(
+                    (connection) => connection.id === provider.id && !connection.enabled,
+                )
+                    ? { ...provider, disabledReason: "not_authenticated" as const }
+                    : provider,
+            ),
+        };
     const models = new Map(catalog.models.map((model) => [model.id, model]));
     const providers = connections.map((connection): HappyAgentModelProvider => {
         const offered = connection.models.flatMap((id) => {

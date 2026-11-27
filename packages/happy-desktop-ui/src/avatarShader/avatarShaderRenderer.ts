@@ -183,7 +183,14 @@ class AvatarShaderRenderer {
         this.#entries.set(canvas, entry);
         this.#byId.set(entry.id, entry);
         this.#intersection?.observe(canvas);
-        this.#resize?.observe(canvas, { box: "device-pixel-content-box" });
+        try {
+            this.#resize?.observe(canvas, { box: "device-pixel-content-box" });
+        } catch {
+            // WebKit refuses that box with a TypeError. The content box still
+            // reports size changes, and the size is worked out from the ratio
+            // either way; only a move to another display goes unreported.
+            this.#resize?.observe(canvas);
+        }
         this.#wake();
         return () => {
             this.#entries.delete(canvas);

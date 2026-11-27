@@ -101,6 +101,11 @@ import type {
     TaskGroup,
 } from "./types.js";
 import { sidebarReadAheadOrder, type SidebarReadAheadRows } from "./types.js";
+import {
+    happyAgentHiddenAdminBot,
+    happyAgentHiddenHas,
+    happyAgentHiddenSubscribe,
+} from "../happyAgent/happyAgentHiddenIds.js";
 
 const INITIAL_RECONNECT_MS = 250;
 const MAXIMUM_RECONNECT_MS = 5_000;
@@ -838,6 +843,19 @@ export function connectHappyAgent(options: ConnectHappyAgentOptions): HappyAgent
         groupsUnpublished = false;
         groupsPublishNow([...groupDeltasUnpublished.splice(0), ...deltas]);
     };
+
+    // The hidden set grew: what is already held of it goes from the sidebar.
+    const hiddenUnsubscribe = happyAgentHiddenSubscribe(() => {
+        const state = groupsStore.getState();
+        const bots = state.bots.filter((bot) => !happyAgentHiddenHas(bot.id, bot.workspaceId));
+        const workspaces = state.workspaces.filter(
+            (workspace) => !happyAgentHiddenHas(workspace.id),
+        );
+        if (bots.length === state.bots.length && workspaces.length === state.workspaces.length)
+            return;
+        groupsStore.setState({ bots, workspaces });
+        publishGroups();
+    });
 
     /** The project groups as `projectGroupsChanged` brings them forward. */
     const groupsProject = (
@@ -2573,6 +2591,8 @@ export function connectHappyAgent(options: ConnectHappyAgentOptions): HappyAgent
     };
 
     const applyEvent = (event: HappyAgentEvent): void => {
+        // About something the server hides from this reader: never held, so never shown.
+        if (eventHidden(event)) return;
         if (resyncTask !== undefined) {
             resyncBufferedEvents.push(event);
             return;
@@ -6614,6 +6634,7 @@ export function connectHappyAgent(options: ConnectHappyAgentOptions): HappyAgent
                 source: "connection",
             });
             rootController.abort();
+            hiddenUnsubscribe();
             sync.writer.close();
             updatesAttemptController?.abort();
             retryWake?.();
@@ -7076,6 +7097,27 @@ function taskMembershipsReplace(
 function agentChangesOnlyTimestamp(agent: Agent, changes: Partial<Agent>): boolean {
     return Object.entries(changes).every(
         ([key, value]) => key === "updatedAt" || Object.is(agent[key as keyof Agent], value),
+    );
+}
+
+/** Whether an event is about a bot, workspace or agent hidden from this reader. */
+function eventHidden(event: HappyAgentEvent): boolean {
+    const payload = event.payload as Record<string, unknown> | undefined;
+    const nested = (key: string): Record<string, unknown> | undefined => {
+        const value = payload?.[key];
+        return typeof value === "object" && value !== null
+            ? (value as Record<string, unknown>)
+            : undefined;
+    };
+    if (happyAgentHiddenAdminBot(payload?.bot)) return true;
+    return happyAgentHiddenHas(
+        agentIdOfEvent(event),
+        payload?.botId,
+        payload?.workspaceId,
+        nested("bot")?.id,
+        nested("bot")?.workspaceId,
+        nested("workspace")?.id,
+        nested("agent")?.workspaceId,
     );
 }
 

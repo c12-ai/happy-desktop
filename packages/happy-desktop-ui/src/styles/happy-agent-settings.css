@@ -273,6 +273,7 @@
  */
 .happy-agent-settings__editor {
     display: flex;
+    flex-direction: column;
     height: 520px;
     overflow: hidden;
     border: 1px solid var(--divider);
@@ -294,6 +295,18 @@
     display: flex;
     align-items: center;
     gap: 12px;
+}
+
+.happy-agent-provider__account {
+    position: relative;
+    display: flex;
+}
+
+.happy-agent-provider__account-confirm {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: var(--happy-z-overlay);
 }
 
 .happy-agent-provider__identity {
@@ -1815,6 +1828,18 @@
 /* The command is the whole point of the dialog, so its copy is always shown. */
 .happy-agent-compute__copy.happy-copy-button {
     opacity: 1;
+}
+
+.happy-agent-settings__document-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--divider);
+    background-color: var(--surface);
+    color: var(--text-secondary);
 }
 
 .happy-agent-compute__command-text {
